@@ -22,6 +22,8 @@ jobs:
       - run: go mod tidy && git diff --exit-code -- go.mod go.sum
       - run: test -z "$(find ./cmd ./internal ./web -name '*.go' -print0 | xargs -0 gofmt -l)"
       - run: go vet ./...
+      - run: node --check web/app.js
+      - run: python3 -m py_compile skills/type-registry/scripts/type_registry.py
       - run: go test ./...
       - run: go build -o /tmp/x-type-center ./cmd/x-type-center
       - run: go build -o /tmp/type-registry ./cmd/type-registry

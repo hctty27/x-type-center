@@ -52,17 +52,8 @@ func (r *Registry) Allocate(ctx context.Context, req model.AllocateRequest) (mod
 	if req.Namespace == "" {
 		return model.TypeEntry{}, fmt.Errorf("namespace is required")
 	}
-	if req.Project == "" {
-		return model.TypeEntry{}, fmt.Errorf("project is required")
-	}
-	if req.Symbol == "" {
-		return model.TypeEntry{}, fmt.Errorf("symbol is required")
-	}
-	if !symbolPattern.MatchString(req.Symbol) {
+	if req.Symbol != "" && !symbolPattern.MatchString(req.Symbol) {
 		return model.TypeEntry{}, fmt.Errorf("symbol must match %s", symbolPattern.String())
-	}
-	if req.Description == "" {
-		return model.TypeEntry{}, fmt.Errorf("description is required")
 	}
 	return r.store.Allocate(ctx, req)
 }

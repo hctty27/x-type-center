@@ -20,7 +20,7 @@ Registry 是唯一事实源。Excel 仅用于历史数据首次导入；代码�
 - 项目预留区间
 - 历史 Excel 导入
 - 类型校验
-- Web 查询和申请页面
+- Web Namespace 总览和申请页面
 - AI Skill + CLI 工作流
 - 单 Go 二进制部署（server/import/migrate/version）
 - Docker Compose 本地开发可选
@@ -203,6 +203,14 @@ bin/type-registry search --namespace RankType '混沌灵域'
 
 ### 申请
 
+只有 Namespace 必需，其余元数据可选：
+
+```bash
+bin/type-registry allocate --namespace RankType
+```
+
+也可以补充项目、常量名、描述等信息：
+
 ```bash
 bin/type-registry allocate \
   --namespace RankType \
@@ -311,7 +319,7 @@ search -> status -> allocate -> 修改代码 -> validate
 
 ### type_entries
 
-已注册类型值。历史 Excel 数据允许 `symbol=NULL`；Registry 新申请必须提供 `symbol`。
+已注册类型值。新申请时除 Namespace 外的元数据均可为空；未填写 `symbol` 时存储为 `NULL`，避免空字符串触发 Namespace 内 symbol 唯一约束冲突。
 
 ### reserved_ranges
 
