@@ -179,6 +179,37 @@
     </div>
   </dialog>
 
+  <dialog id="revokeDialog" class="revoke-dialog">
+    <form id="revokeForm" class="revoke-shell">
+      <header class="revoke-header">
+        <div>
+          <p class="dialog-kicker">REVOKE TYPE</p>
+          <h2 id="revokeDialogTitle">撤回类型</h2>
+          <p id="revokeDialogMeta" class="muted"></p>
+        </div>
+        <button id="closeRevokeDialog" class="icon-button" type="button" aria-label="关闭">×</button>
+      </header>
+
+      <label class="field">
+        <span>撤回人 <em>可选</em></span>
+        <input id="revokeRequester" maxlength="128" autocomplete="off" placeholder="姓名 / Git 用户">
+      </label>
+
+      <label class="field">
+        <span>撤回原因</span>
+        <textarea id="revokeReason" maxlength="500" required placeholder="说明为什么需要撤回"></textarea>
+      </label>
+
+      <p class="revoke-warning">撤回后该类型值仍永久占用，不会重新分配。</p>
+      <p id="revokeMessage" class="revoke-message"></p>
+
+      <div class="revoke-actions">
+        <button id="cancelRevokeButton" class="secondary-button" type="button">取消</button>
+        <button id="confirmRevokeButton" class="danger-button" type="submit">确认撤回</button>
+      </div>
+    </form>
+  </dialog>
+
   <script src="/app.js"></script>
 </body>
 </html>
