@@ -93,6 +93,23 @@ def command_allocate(args):
     }))
 
 
+def command_revoke(args):
+    if bool(args.id) == bool(args.allocation):
+        raise RuntimeError("exactly one of --id or --allocation is required")
+    if not args.reason.strip():
+        raise RuntimeError("--reason is required")
+
+    payload = {
+        "requester": args.requester,
+        "reason": args.reason,
+    }
+    if args.id:
+        path = "/api/v1/types/" + quote(str(args.id), safe="") + "/revoke"
+    else:
+        path = "/api/v1/allocations/" + quote(args.allocation, safe="") + "/revoke"
+    print_json(request_json("POST", path, payload))
+
+
 def command_validate(args):
     print_json(request_json("POST", "/api/v1/types/validate", {
         "namespace": args.namespace,
@@ -133,6 +150,13 @@ def build_parser():
     allocate.add_argument("--requirement", default="")
     allocate.add_argument("--requester", default="")
     allocate.set_defaults(handler=command_allocate)
+
+    revoke = commands.add_parser("revoke")
+    revoke.add_argument("--id", type=int, default=0)
+    revoke.add_argument("--allocation", default="")
+    revoke.add_argument("--reason", required=True)
+    revoke.add_argument("--requester", default="")
+    revoke.set_defaults(handler=command_revoke)
 
     validate = commands.add_parser("validate")
     validate.add_argument("--namespace", required=True)
