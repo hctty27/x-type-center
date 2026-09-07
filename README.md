@@ -231,6 +231,22 @@ bin/type-registry allocate \
   --requirement XH2-3124
 ```
 
+### 撤回
+
+撤回不会释放类型值，记录会变为 `REVOKED`，该 value 永久不可重新分配。
+
+撤回单条：
+
+```bash
+bin/type-registry revoke --id 123 --reason '登记错误' --requester hc
+```
+
+撤回一次申请：
+
+```bash
+bin/type-registry revoke --allocation alloc_xxx --reason 'Namespace 选择错误' --requester hc
+```
+
 ### 校验
 
 ```bash
@@ -260,10 +276,14 @@ GET  /api/v1/types/search?q=keyword&namespace=RankType&project=XH2&page=1&pageSi
 GET  /api/v1/skill-package
 POST /api/v1/types/allocate
 POST /api/v1/types/allocate-batch
+POST /api/v1/types/{id}/revoke
+POST /api/v1/allocations/{allocationId}/revoke
 POST /api/v1/types/validate
 ```
 
 项目字段可选。Web 端会从 `GET /api/v1/projects` 加载项目候选，同时允许直接输入新项目；当申请事务成功时，新项目会自动登记到 `projects` 表。已有 `type_entries` 和 `reserved_ranges` 中的项目会在迁移时自动回填到项目表。
+
+申请成功后返回 `allocationId`。Web 页面支持从申请结果直接撤回整批，也支持在 Namespace entries 中撤回单条记录。撤回只把状态改为 `REVOKED` 并记录撤回人、原因和时间，不回退 Namespace 游标，也不重新利用旧 value；重复调用同一撤回接口保持幂等。
 
 申请示例：
 
@@ -388,7 +408,15 @@ Namespace 的全局替代名称。别名全局唯一，用于把“商城类型�
 
 ### type_entries
 
-已注册类型值。新申请时除 Namespace 外的元数据均可为空；未填写 `symbol` 时存储为 `NULL`，避免空字符串触发 Namespace 内 symbol 唯一约束冲突。
+已注册类型值。新申请时除 Namespace 外的元数据均可为空；未填写 `symbol` 时存储为 `NULL`，避免空字符串触发 Namespace 内 symbol 唯一约束冲突。状态支持 `ACTIVE`、`REVOKED`、`DEPRECATED`；只要 value 曾登记过，就永久视为占用。
+
+### type_allocations / type_allocation_entries
+
+记录一次申请及其包含的 entry，用于安全地撤回整批申请。每次新申请都会生成唯一 `allocationId`。
+
+### type_entry_revocations
+
+记录撤回人、撤回原因和撤回时间。撤回不物理删除 `type_entries`。
 
 ### reserved_ranges
 
@@ -414,6 +442,6 @@ x-type-center version
 
 ## 注意事项
 
-- 已使用类型不要物理删除，后续应增加 `DEPRECATED` 管理入口。
+- 已使用类型不要物理删除；误申请使用 `REVOKED`，正式下线后续使用 `DEPRECATED`。
 - Excel 导入应先在测试库执行并检查报告，再切换 Registry 为唯一写入口。
 - API 本身不做应用层鉴权；生产环境建议仅暴露在公司内网/VPN，或由统一网关/SSO 控制访问范围。
