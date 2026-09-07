@@ -39,7 +39,11 @@ func (a *API) Routes(static http.Handler) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", a.health)
 	mux.HandleFunc("GET /api/v1/namespaces", a.listNamespaces)
+	mux.HandleFunc("GET /api/v1/namespaces/resolve", a.resolveNamespace)
 	mux.HandleFunc("GET /api/v1/namespaces/{code}", a.getNamespace)
+	mux.HandleFunc("GET /api/v1/namespaces/{code}/aliases", a.listNamespaceAliases)
+	mux.HandleFunc("POST /api/v1/namespaces/{code}/aliases", a.createNamespaceAlias)
+	mux.HandleFunc("DELETE /api/v1/namespaces/{code}/aliases/{id}", a.deleteNamespaceAlias)
 	mux.HandleFunc("GET /api/v1/types/search", a.searchTypes)
 	mux.HandleFunc("GET /api/v1/skill-package", a.downloadSkillPackage)
 	mux.HandleFunc("HEAD /api/v1/skill-package", a.downloadSkillPackage)
@@ -63,6 +67,15 @@ func (a *API) listNamespaces(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"items": items})
 }
 
+func (a *API) resolveNamespace(w http.ResponseWriter, r *http.Request) {
+	result, err := a.registry.ResolveNamespace(r.Context(), r.URL.Query().Get("q"))
+	if err != nil {
+		a.fail(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
 func (a *API) getNamespace(w http.ResponseWriter, r *http.Request) {
 	ns, ranges, err := a.registry.GetNamespace(r.Context(), r.PathValue("code"))
 	if err != nil {
@@ -70,6 +83,42 @@ func (a *API) getNamespace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"namespace": ns, "reservedRanges": ranges})
+}
+
+func (a *API) listNamespaceAliases(w http.ResponseWriter, r *http.Request) {
+	items, err := a.registry.ListNamespaceAliases(r.Context(), r.PathValue("code"))
+	if err != nil {
+		a.fail(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"items": items})
+}
+
+func (a *API) createNamespaceAlias(w http.ResponseWriter, r *http.Request) {
+	var req model.CreateNamespaceAliasRequest
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	item, err := a.registry.CreateNamespaceAlias(r.Context(), r.PathValue("code"), req)
+	if err != nil {
+		a.fail(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, item)
+}
+
+func (a *API) deleteNamespaceAlias(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil || id <= 0 {
+		writeError(w, http.StatusBadRequest, "invalid alias id")
+		return
+	}
+	if err := a.registry.DeleteNamespaceAlias(r.Context(), r.PathValue("code"), id); err != nil {
+		a.fail(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (a *API) downloadSkillPackage(w http.ResponseWriter, r *http.Request) {
