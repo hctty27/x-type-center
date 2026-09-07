@@ -31,6 +31,7 @@ func (a *API) Routes(static http.Handler) http.Handler {
 	mux.HandleFunc("GET /api/v1/namespaces/{code}", a.getNamespace)
 	mux.HandleFunc("GET /api/v1/types/search", a.searchTypes)
 	mux.HandleFunc("POST /api/v1/types/allocate", a.allocateType)
+	mux.HandleFunc("POST /api/v1/types/allocate-batch", a.allocateTypes)
 	mux.HandleFunc("POST /api/v1/types/validate", a.validateType)
 	mux.Handle("/", static)
 	return a.withLogging(mux)
@@ -112,6 +113,23 @@ func (a *API) allocateType(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusCreated, entry)
+}
+
+func (a *API) allocateTypes(w http.ResponseWriter, r *http.Request) {
+	var req model.AllocateBatchRequest
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if req.Requester == "" {
+		req.Requester = strings.TrimSpace(r.Header.Get("X-Requester"))
+	}
+	result, err := a.registry.AllocateBatch(r.Context(), req)
+	if err != nil {
+		a.fail(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, result)
 }
 
 func (a *API) validateType(w http.ResponseWriter, r *http.Request) {
