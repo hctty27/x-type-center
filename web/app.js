@@ -12,7 +12,8 @@ const state = {
     pageSize: 20,
     total: 0,
     totalPages: 0,
-    query: ''
+    query: '',
+    aliases: []
   }
 };
 
@@ -65,6 +66,15 @@ function esc(value) {
 
 function namespaceLabel(ns) {
   return ns.code + '（' + (ns.displayName || '未命名') + '）';
+}
+
+function namespaceAliases(ns) {
+  return Array.isArray(ns.aliases) ? ns.aliases : [];
+}
+
+function aliasSummary(ns) {
+  const aliases = namespaceAliases(ns);
+  return aliases.length ? aliases.join('、') : '-';
 }
 
 function valueOrDash(value) {
@@ -130,7 +140,7 @@ function applyNamespaceFilter(resetPage = true) {
   const query = $('searchInput').value.trim().toLowerCase();
 
   state.filteredNamespaces = query
-    ? state.namespaces.filter((ns) => [ns.code, ns.displayName, ns.description, ns.status]
+    ? state.namespaces.filter((ns) => [ns.code, ns.displayName, ns.description, ns.status, ...namespaceAliases(ns)]
         .some((value) => String(value || '').toLowerCase().includes(query)))
     : [...state.namespaces];
 
@@ -172,6 +182,7 @@ function renderNamespaceTable() {
       '<thead><tr>',
         '<th class="col-code">Namespace</th>',
         '<th class="col-name">名称</th>',
+        '<th class="col-alias">别名</th>',
         '<th class="col-number">当前最大</th>',
         '<th class="col-number">下一可用</th>',
         '<th class="col-number">已使用</th>',
@@ -183,7 +194,8 @@ function renderNamespaceTable() {
           '<tr class="namespace-row" data-namespace="' + esc(ns.code) + '">',
             '<td><span class="namespace-code">' + esc(ns.code) + '</span></td>',
             '<td title="' + esc(ns.description || ns.displayName || '-') + '">' + esc(ns.displayName || '-') + '</td>',
-            '<td><strong>' + esc(valueOrDash(ns.currentMax)) + '</strong></td>',
+            '<td title="' + esc(aliasSummary(ns)) + '">' + esc(aliasSummary(ns)) + '</td>',
+            '<td><strong>' + esc(valueOrDash(ns.currentMax)) + '</strong></td>'
             '<td><span class="next-value">' + esc(valueOrDash(ns.nextValue)) + '</span></td>',
             '<td>' + esc(ns.usedCount || 0) + '</td>',
             '<td>' + esc(formatRange(ns)) + '</td>',
@@ -213,7 +225,8 @@ function filterComboItems() {
   state.comboItems = state.namespaces.filter((ns) => {
     if (!query) return true;
     return ns.code.toLowerCase().includes(query)
-      || String(ns.displayName || '').toLowerCase().includes(query);
+      || String(ns.displayName || '').toLowerCase().includes(query)
+      || namespaceAliases(ns).some((alias) => String(alias).toLowerCase().includes(query));
   });
   state.comboActiveIndex = state.comboItems.length ? 0 : -1;
 }
@@ -293,7 +306,10 @@ async function openEntries(code) {
   state.entries.namespace = code;
   state.entries.page = 1;
   state.entries.query = '';
+  state.entries.aliases = [];
   $('entrySearchInput').value = '';
+  $('aliasInput').value = '';
+  $('aliasMessage').textContent = '';
   $('entryDialogTitle').textContent = namespaceLabel(ns);
   $('entryDialogMeta').textContent = [
     '当前最大 ' + valueOrDash(ns.currentMax),
@@ -303,7 +319,48 @@ async function openEntries(code) {
 
   const dialog = $('entryDialog');
   if (!dialog.open) dialog.showModal();
-  await loadEntries();
+  await Promise.all([loadAliases(), loadEntries()]);
+}
+
+async function loadAliases() {
+  if (!state.entries.namespace) return;
+
+  const data = await api('/api/v1/namespaces/' + encodeURIComponent(state.entries.namespace) + '/aliases');
+  state.entries.aliases = data.items || [];
+  renderNamespaceAliases();
+}
+
+function renderNamespaceAliases() {
+  const container = $('aliasChips');
+  const items = state.entries.aliases || [];
+
+  if (!items.length) {
+    container.innerHTML = '<span class="alias-empty">暂无别名</span>';
+    return;
+  }
+
+  container.innerHTML = items.map((item) => [
+    '<span class="alias-chip">',
+      '<span>' + esc(item.alias) + '</span>',
+      '<button type="button" data-alias-id="' + esc(item.id) + '" aria-label="删除别名 ' + esc(item.alias) + '">×</button>',
+    '</span>'
+  ].join('')).join('');
+
+  container.querySelectorAll('[data-alias-id]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      $('aliasMessage').textContent = '';
+      try {
+        await api(
+          '/api/v1/namespaces/' + encodeURIComponent(state.entries.namespace) + '/aliases/' + encodeURIComponent(button.dataset.aliasId),
+          { method: 'DELETE' }
+        );
+        await loadAliases();
+        await loadNamespaces();
+      } catch (error) {
+        $('aliasMessage').textContent = error.message;
+      }
+    });
+  });
 }
 
 async function loadEntries() {
@@ -516,6 +573,35 @@ $('allocateNamespaceSearch').addEventListener('keydown', (event) => {
 
 document.addEventListener('mousedown', (event) => {
   if (!$('namespaceCombo').contains(event.target)) closeCombo();
+});
+
+$('aliasForm').addEventListener('submit', async (event) => {
+  event.preventDefault();
+
+  const namespace = state.entries.namespace;
+  const alias = $('aliasInput').value.trim();
+  $('aliasMessage').textContent = '';
+
+  if (!namespace) {
+    $('aliasMessage').textContent = '未选择 Namespace';
+    return;
+  }
+  if (!alias) {
+    $('aliasMessage').textContent = '请输入别名';
+    return;
+  }
+
+  try {
+    await api('/api/v1/namespaces/' + encodeURIComponent(namespace) + '/aliases', {
+      method: 'POST',
+      body: JSON.stringify({ alias })
+    });
+    $('aliasInput').value = '';
+    await loadAliases();
+    await loadNamespaces();
+  } catch (error) {
+    $('aliasMessage').textContent = error.message;
+  }
 });
 
 $('closeEntryDialog').addEventListener('click', () => $('entryDialog').close());
