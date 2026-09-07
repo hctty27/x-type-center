@@ -96,9 +96,6 @@ def command_allocate(args):
 def command_revoke(args):
     if bool(args.id) == bool(args.allocation):
         raise RuntimeError("exactly one of --id or --allocation is required")
-    if not args.reason.strip():
-        raise RuntimeError("--reason is required")
-
     payload = {
         "requester": args.requester,
         "reason": args.reason,
@@ -154,7 +151,7 @@ def build_parser():
     revoke = commands.add_parser("revoke")
     revoke.add_argument("--id", type=int, default=0)
     revoke.add_argument("--allocation", default="")
-    revoke.add_argument("--reason", required=True)
+    revoke.add_argument("--reason", default="")
     revoke.add_argument("--requester", default="")
     revoke.set_defaults(handler=command_revoke)
 
