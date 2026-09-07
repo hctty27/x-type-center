@@ -83,6 +83,27 @@ func (s *MySQL) Migrate(ctx context.Context) error {
 	return nil
 }
 
+func (s *MySQL) ListProjects(ctx context.Context) ([]model.Project, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id, name, created_at, updated_at
+		FROM projects
+		ORDER BY name`)
+	if err != nil {
+		return nil, fmt.Errorf("list projects: %w", err)
+	}
+	defer rows.Close()
+
+	var result []model.Project
+	for rows.Next() {
+		var item model.Project
+		if err := rows.Scan(&item.ID, &item.Name, &item.CreatedAt, &item.UpdatedAt); err != nil {
+			return nil, err
+		}
+		result = append(result, item)
+	}
+	return result, rows.Err()
+}
+
 func (s *MySQL) ListNamespaces(ctx context.Context) ([]model.Namespace, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT n.id, n.code, n.display_name, n.description, n.next_value, n.min_value, n.max_value, n.status,
@@ -458,6 +479,14 @@ func (s *MySQL) AllocateBatch(ctx context.Context, req model.AllocateRequest, co
 	ns, err := lockNamespace(ctx, tx, req.Namespace)
 	if err != nil {
 		return nil, err
+	}
+
+	if req.Project != "" {
+		if _, err := tx.ExecContext(ctx, `
+			INSERT IGNORE INTO projects(name)
+			VALUES (?)`, req.Project); err != nil {
+			return nil, fmt.Errorf("ensure project: %w", err)
+		}
 	}
 
 	items := make([]model.TypeEntry, 0, count)
