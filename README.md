@@ -250,6 +250,7 @@ API 不使用应用层 Token。Web、Skill 和 CLI 都直接调用同一套接�
 ```text
 GET  /healthz
 GET  /api/v1/namespaces
+GET  /api/v1/projects
 GET  /api/v1/namespaces/resolve?q=商城类型
 GET  /api/v1/namespaces/{code}
 GET  /api/v1/namespaces/{code}/aliases
@@ -258,8 +259,11 @@ DELETE /api/v1/namespaces/{code}/aliases/{id}
 GET  /api/v1/types/search?q=keyword&namespace=RankType&project=XH2&page=1&pageSize=10
 GET  /api/v1/skill-package
 POST /api/v1/types/allocate
+POST /api/v1/types/allocate-batch
 POST /api/v1/types/validate
 ```
+
+项目字段可选。Web 端会从 `GET /api/v1/projects` 加载项目候选，同时允许直接输入新项目；当申请事务成功时，新项目会自动登记到 `projects` 表。已有 `type_entries` 和 `reserved_ranges` 中的项目会在迁移时自动回填到项目表。
 
 申请示例：
 
