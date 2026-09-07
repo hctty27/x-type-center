@@ -30,7 +30,6 @@ func (r *Registry) ListProjects(ctx context.Context) ([]model.Project, error) {
 	return r.store.ListProjects(ctx)
 }
 
-
 func (r *Registry) GetNamespace(ctx context.Context, code string) (model.Namespace, []model.ReservedRange, error) {
 	ns, err := r.store.GetNamespace(ctx, strings.TrimSpace(code))
 	if err != nil {
