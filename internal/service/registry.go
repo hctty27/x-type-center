@@ -196,9 +196,6 @@ func normalizeRevokeRequest(req model.RevokeRequest) (model.RevokeRequest, error
 	req.Requester = strings.TrimSpace(req.Requester)
 	req.Reason = strings.TrimSpace(req.Reason)
 
-	if req.Reason == "" {
-		return model.RevokeRequest{}, fmt.Errorf("reason is required")
-	}
 	if utf8.RuneCountInString(req.Requester) > 128 {
 		return model.RevokeRequest{}, fmt.Errorf("invalid requester: must be at most 128 characters")
 	}
