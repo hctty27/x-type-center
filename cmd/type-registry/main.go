@@ -17,7 +17,6 @@ import (
 
 type client struct {
 	baseURL string
-	token   string
 	http    *http.Client
 }
 
@@ -28,7 +27,6 @@ func main() {
 	}
 	c := client{
 		baseURL: strings.TrimRight(env("TYPE_REGISTRY_URL", "http://127.0.0.1:8080"), "/"),
-		token:   os.Getenv("TYPE_REGISTRY_TOKEN"),
 		http:    &http.Client{Timeout: 10 * time.Second},
 	}
 
@@ -135,9 +133,6 @@ func (c client) post(path string, payload any) error {
 }
 
 func (c client) do(req *http.Request) error {
-	if c.token != "" {
-		req.Header.Set("Authorization", "Bearer "+c.token)
-	}
 	resp, err := c.http.Do(req)
 	if err != nil {
 		return err
