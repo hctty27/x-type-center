@@ -77,4 +77,10 @@ type SearchParams struct {
 	Namespace string
 	Project   string
 	Limit     int
+	Offset    int
+}
+
+type SearchResult struct {
+	Items []TypeEntry `json:"items"`
+	Total int64       `json:"total"`
 }

@@ -174,10 +174,14 @@ type queryer interface {
 	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
 }
 
-func (s *MySQL) SearchEntries(ctx context.Context, params model.SearchParams) ([]model.TypeEntry, error) {
+func (s *MySQL) SearchEntries(ctx context.Context, params model.SearchParams) (model.SearchResult, error) {
 	limit := params.Limit
 	if limit <= 0 || limit > 200 {
 		limit = 50
+	}
+	offset := params.Offset
+	if offset < 0 {
+		offset = 0
 	}
 
 	var where []string
@@ -196,28 +200,43 @@ func (s *MySQL) SearchEntries(ctx context.Context, params model.SearchParams) ([
 		where = append(where, `(n.code LIKE ? OR e.symbol LIKE ? OR e.description LIKE ? OR e.project LIKE ? OR e.requirement_ref LIKE ? OR CAST(e.value AS CHAR) = ?)`)
 		args = append(args, like, like, like, like, like, params.Query)
 	}
-	args = append(args, limit)
+
+	whereSQL := strings.Join(where, " AND ")
+	countQuery := `SELECT COUNT(*)
+		FROM type_entries e JOIN type_namespaces n ON n.id = e.namespace_id
+		WHERE ` + whereSQL
+
+	var total int64
+	if err := s.db.QueryRowContext(ctx, countQuery, args...).Scan(&total); err != nil {
+		return model.SearchResult{}, fmt.Errorf("count search entries: %w", err)
+	}
+
+	queryArgs := append([]any{}, args...)
+	queryArgs = append(queryArgs, limit, offset)
 
 	query := `SELECT e.id, e.namespace_id, n.code, e.value, COALESCE(e.symbol, ''), e.project, e.description,
 	                 e.requirement_ref, e.requester, e.source, e.source_ref, e.status, e.created_at, e.updated_at
 	          FROM type_entries e JOIN type_namespaces n ON n.id = e.namespace_id
-	          WHERE ` + strings.Join(where, " AND ") + `
-	          ORDER BY e.updated_at DESC, e.id DESC LIMIT ?`
-	rows, err := s.db.QueryContext(ctx, query, args...)
+	          WHERE ` + whereSQL + `
+	          ORDER BY e.updated_at DESC, e.id DESC LIMIT ? OFFSET ?`
+	rows, err := s.db.QueryContext(ctx, query, queryArgs...)
 	if err != nil {
-		return nil, fmt.Errorf("search entries: %w", err)
+		return model.SearchResult{}, fmt.Errorf("search entries: %w", err)
 	}
 	defer rows.Close()
 
-	var result []model.TypeEntry
+	result := make([]model.TypeEntry, 0, limit)
 	for rows.Next() {
 		entry, err := scanEntry(rows)
 		if err != nil {
-			return nil, err
+			return model.SearchResult{}, err
 		}
 		result = append(result, entry)
 	}
-	return result, rows.Err()
+	if err := rows.Err(); err != nil {
+		return model.SearchResult{}, err
+	}
+	return model.SearchResult{Items: result, Total: total}, nil
 }
 
 func (s *MySQL) GetEntry(ctx context.Context, namespace string, value int64) (model.TypeEntry, error) {
