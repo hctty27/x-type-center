@@ -621,7 +621,7 @@ $('allocateForm').addEventListener('submit', async (event) => {
 
     renderAllocationSuccess(data);
     state.selectedNamespace = data.namespace;
-    $('project').value = project;
+    $('project').value = data.items?.[0]?.project || project;
     await Promise.all([loadNamespaces(), loadProjects()]);
   } catch (error) {
     renderAllocationError(error.message);
