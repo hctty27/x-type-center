@@ -102,7 +102,7 @@ button {
 .dashboard {
   height: calc(100vh - 64px);
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 360px;
+  grid-template-columns: minmax(0, 1fr) 420px;
   gap: 12px;
   padding: 12px;
   overflow: hidden;
