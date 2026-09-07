@@ -72,8 +72,14 @@ def command_search(args):
 
 
 def command_allocate(args):
-    print_json(request_json("POST", "/api/v1/types/allocate", {
+    if args.count < 1 or args.count > 100:
+        raise RuntimeError("count must be between 1 and 100")
+    if args.count > 1 and args.symbol:
+        raise RuntimeError("symbol must be empty when count is greater than 1")
+
+    print_json(request_json("POST", "/api/v1/types/allocate-batch", {
         "namespace": args.namespace,
+        "count": args.count,
         "project": args.project,
         "symbol": args.symbol,
         "description": args.description,
@@ -111,6 +117,7 @@ def build_parser():
 
     allocate = commands.add_parser("allocate")
     allocate.add_argument("--namespace", required=True)
+    allocate.add_argument("--count", type=int, default=1)
     allocate.add_argument("--project", default="")
     allocate.add_argument("--symbol", default="")
     allocate.add_argument("--description", default="")
