@@ -24,6 +24,7 @@ jobs:
       - run: go vet ./...
       - run: node --check web/app.js
       - run: python3 -m py_compile skills/type-registry/scripts/type_registry.py
+      - run: make skill-package && unzip -l dist/type-registry-skill.zip | grep 'type-registry/SKILL.md'
       - run: go test ./...
       - run: go build -o /tmp/x-type-center ./cmd/x-type-center
       - run: go build -o /tmp/type-registry ./cmd/type-registry
@@ -86,6 +87,13 @@ jobs:
           pattern: x-type-center-${{ github.run_number }}-linux-*
           path: release-assets
           merge-multiple: true
+      - name: Build skill package
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release-assets
+          (cd skills && zip -qr ../release-assets/type-registry-skill.zip type-registry)
+          (cd release-assets && sha256sum type-registry-skill.zip > type-registry-skill.zip.sha256)
       - name: Publish GitHub Release
         shell: bash
         env:

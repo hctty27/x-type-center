@@ -21,6 +21,7 @@ Registry 是唯一事实源。Excel 仅用于历史数据首次导入；代码�
 - 历史 Excel 导入
 - 类型校验
 - Web Namespace 总览和申请页面
+- Web 一键下载 AI Skill 包
 - AI Skill + CLI 工作流
 - 单 Go 二进制部署（server/import/migrate/version）
 - Docker Compose 本地开发可选
@@ -130,8 +131,9 @@ deploy/systemd/x-type-center.env.example
 ```bash
 sudo install -m 0755 dist/x-type-center-linux-amd64 /usr/local/bin/x-type-center
 sudo useradd --system --no-create-home --shell /usr/sbin/nologin x-type-center || true
-sudo mkdir -p /etc/x-type-center
+sudo mkdir -p /etc/x-type-center /var/lib/x-type-center
 sudo cp deploy/systemd/x-type-center.env.example /etc/x-type-center/x-type-center.env
+sudo cp /path/to/type-registry-skill.zip /var/lib/x-type-center/type-registry-skill.zip
 sudo cp deploy/systemd/x-type-center.service /etc/systemd/system/x-type-center.service
 
 sudo systemctl daemon-reload
@@ -241,6 +243,7 @@ GET  /healthz
 GET  /api/v1/namespaces
 GET  /api/v1/namespaces/{code}
 GET  /api/v1/types/search?q=keyword&namespace=RankType&project=XH2&page=1&pageSize=10
+GET  /api/v1/skill-package
 POST /api/v1/types/allocate
 POST /api/v1/types/validate
 ```
@@ -301,12 +304,57 @@ search -> status -> allocate -> 修改代码 -> validate
 
 正式在多个项目分发前，把 `baseUrl` 改成公司内网统一的 X Type Center 地址。之后所有项目只需要复制同一份 Skill 目录。
 
+### Web 下载技能包
+
+页面右上角提供“下载技能包”按钮。服务端从配置的本地模板 ZIP 读取 Skill，在下载时实时把 `type-registry/config.json` 中的 `baseUrl` 改成当前部署地址：
+
+```text
+GET /api/v1/skill-package
+```
+
+推荐生产配置：
+
+```bash
+TYPE_REGISTRY_SKILL_PACKAGE_PATH=/var/lib/x-type-center/type-registry-skill.zip
+TYPE_REGISTRY_PUBLIC_URL=https://x-type-center.internal
+```
+
+下载后的配置会自动变成：
+
+```json
+{
+  "baseUrl": "https://x-type-center.internal",
+  "timeoutSeconds": 10
+}
+```
+
+`TYPE_REGISTRY_PUBLIC_URL` 未配置时，服务端会回退到当前请求的协议和 Host。反向代理或 HTTPS 终止场景应显式配置 `TYPE_REGISTRY_PUBLIC_URL`，避免生成错误的 `http://` 地址。服务端不会自动信任 `X-Forwarded-*` 请求头。
+
+未配置 Skill 路径、文件不存在或 ZIP 内缺少 `type-registry/config.json` 时，页面按钮会不可用或下载失败。
+
+本地生成 Skill ZIP 模板：
+
+```bash
+make skill-package
+```
+
+每次 `main` 自动 Release 也会额外上传：
+
+```text
+type-registry-skill.zip
+type-registry-skill.zip.sha256
+```
+
+它们是独立 Release 附件，不会放进只包含 `x-type-center` 二进制的 Linux 服务压缩包。
+
 ## 配置
 
 | 环境变量 | 默认值 |
 |---|---|
 | `TYPE_REGISTRY_ADDR` | `:8080` |
 | `TYPE_REGISTRY_DSN` | 本地 MySQL DSN |
+| `TYPE_REGISTRY_SKILL_PACKAGE_PATH` | 空；Skill ZIP 模板本地绝对路径 |
+| `TYPE_REGISTRY_PUBLIC_URL` | 空；下载 Skill 时注入的服务地址 |
 | `TYPE_REGISTRY_READ_TIMEOUT` | `10s` |
 | `TYPE_REGISTRY_WRITE_TIMEOUT` | `15s` |
 | `TYPE_REGISTRY_IDLE_TIMEOUT` | `60s` |

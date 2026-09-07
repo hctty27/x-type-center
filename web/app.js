@@ -28,6 +28,31 @@ async function api(path, options = {}) {
   return body;
 }
 
+async function loadSkillPackageAvailability() {
+  const button = $('skillDownloadButton');
+
+  try {
+    const response = await fetch('/api/v1/skill-package', {
+      method: 'HEAD',
+      cache: 'no-store'
+    });
+
+    if (!response.ok) throw new Error('skill package unavailable');
+
+    button.href = '/api/v1/skill-package';
+    button.setAttribute('download', '');
+    button.classList.remove('disabled');
+    button.removeAttribute('aria-disabled');
+    button.title = '下载 Type Registry 技能包';
+  } catch (_) {
+    button.removeAttribute('href');
+    button.removeAttribute('download');
+    button.classList.add('disabled');
+    button.setAttribute('aria-disabled', 'true');
+    button.title = '技能包未配置或文件不存在';
+  }
+}
+
 function esc(value) {
   return String(value ?? '').replace(/[&<>'"]/g, (ch) => ({
     '&': '&amp;',
@@ -520,4 +545,5 @@ $('entryPageSize').addEventListener('change', (event) => {
   });
 });
 
+loadSkillPackageAvailability();
 loadNamespaces().catch(showMainError);
