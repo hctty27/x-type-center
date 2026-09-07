@@ -281,7 +281,7 @@ func (s *MySQL) Allocate(ctx context.Context, req model.AllocateRequest) (model.
 
 	result, err := tx.ExecContext(ctx, `
 		INSERT INTO type_entries(namespace_id, value, symbol, project, description, requirement_ref, requester, source, status)
-		VALUES (?, ?, ?, ?, ?, ?, ?, 'registry', 'ACTIVE')`,
+		VALUES (?, ?, NULLIF(?, ''), ?, ?, ?, ?, 'registry', 'ACTIVE')`,
 		ns.ID, candidate, req.Symbol, req.Project, req.Description, req.Requirement, req.Requester)
 	if err != nil {
 		if isDuplicateKey(err) {
