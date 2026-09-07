@@ -17,7 +17,26 @@ type Namespace struct {
 	MaxValue    *int64 `json:"maxValue,omitempty"`
 	Status      string `json:"status"`
 	CurrentMax  *int64 `json:"currentMax,omitempty"`
-	UsedCount   int64  `json:"usedCount"`
+	UsedCount   int64    `json:"usedCount"`
+	Aliases     []string `json:"aliases,omitempty"`
+}
+
+type NamespaceAlias struct {
+	ID          int64     `json:"id"`
+	NamespaceID int64     `json:"namespaceId"`
+	Alias       string    `json:"alias"`
+	CreatedAt   time.Time `json:"createdAt"`
+}
+
+type NamespaceResolveResult struct {
+	Matched      bool       `json:"matched"`
+	MatchType    string     `json:"matchType,omitempty"`
+	Namespace    *Namespace `json:"namespace,omitempty"`
+	MatchedAlias string     `json:"matchedAlias,omitempty"`
+}
+
+type CreateNamespaceAliasRequest struct {
+	Alias string `json:"alias"`
 }
 
 type TypeEntry struct {
