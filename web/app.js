@@ -6,6 +6,9 @@ const state = {
   selectedNamespace: '',
   comboItems: [],
   comboActiveIndex: -1,
+  projects: [],
+  projectComboItems: [],
+  projectComboActiveIndex: -1,
   entries: {
     namespace: '',
     page: 1,
@@ -135,6 +138,16 @@ async function loadNamespaces() {
   syncComboSelection();
   applyNamespaceFilter(false);
 }
+
+async function loadProjects() {
+  const data = await api('/api/v1/projects');
+  state.projects = data.items || [];
+
+  if (!$('projectOptions').hidden) {
+    openProjectCombo();
+  }
+}
+
 
 function applyNamespaceFilter(resetPage = true) {
   const query = $('searchInput').value.trim().toLowerCase();
@@ -295,6 +308,90 @@ function selectNamespace(code) {
   $('allocateNamespaceSearch').value = namespaceLabel(ns);
   closeCombo();
 }
+
+function filterProjectComboItems() {
+  const query = $('project').value.trim().toLowerCase();
+
+  state.projectComboItems = state.projects.filter((item) => {
+    if (!query) return true;
+    return String(item.name || '').toLowerCase().includes(query);
+  });
+  state.projectComboActiveIndex = -1;
+}
+
+function openProjectCombo() {
+  filterProjectComboItems();
+  renderProjectComboOptions();
+  $('projectOptions').hidden = false;
+  $('project').setAttribute('aria-expanded', 'true');
+}
+
+function closeProjectCombo() {
+  $('projectOptions').hidden = true;
+  $('project').setAttribute('aria-expanded', 'false');
+  $('project').removeAttribute('aria-activedescendant');
+  state.projectComboActiveIndex = -1;
+}
+
+function renderProjectComboOptions() {
+  const container = $('projectOptions');
+  const typedProject = $('project').value.trim();
+
+  if (!state.projectComboItems.length) {
+    container.innerHTML = typedProject
+      ? '<div class="combo-empty">未找到，申请成功后将自动新增「' + esc(typedProject) + '」</div>'
+      : '<div class="combo-empty">暂无项目</div>';
+    return;
+  }
+
+  container.innerHTML = state.projectComboItems.map((item, index) => [
+    '<div',
+      ' id="project-option-' + index + '"',
+      ' class="combo-option ' + (index === state.projectComboActiveIndex ? 'active' : '') + '"',
+      ' role="option"',
+      ' aria-selected="' + (item.name === typedProject ? 'true' : 'false') + '"',
+      ' data-project="' + esc(item.name) + '">',
+      '<span>' + esc(item.name) + '</span>',
+    '</div>'
+  ].join('')).join('');
+
+  if (state.projectComboActiveIndex >= 0) {
+    $('project').setAttribute('aria-activedescendant', 'project-option-' + state.projectComboActiveIndex);
+  } else {
+    $('project').removeAttribute('aria-activedescendant');
+  }
+
+  container.querySelectorAll('[data-project]').forEach((option) => {
+    option.addEventListener('mousedown', (event) => {
+      event.preventDefault();
+      selectProject(option.dataset.project);
+    });
+  });
+}
+
+function moveProjectComboActive(direction) {
+  if ($('projectOptions').hidden) {
+    openProjectCombo();
+  }
+  if (!state.projectComboItems.length) return;
+
+  if (state.projectComboActiveIndex < 0) {
+    state.projectComboActiveIndex = direction > 0 ? 0 : state.projectComboItems.length - 1;
+  } else {
+    state.projectComboActiveIndex = (
+      state.projectComboActiveIndex + direction + state.projectComboItems.length
+    ) % state.projectComboItems.length;
+  }
+
+  renderProjectComboOptions();
+  document.getElementById('project-option-' + state.projectComboActiveIndex)?.scrollIntoView({ block: 'nearest' });
+}
+
+function selectProject(name) {
+  $('project').value = name;
+  closeProjectCombo();
+}
+
 
 async function openEntries(code) {
   const ns = state.namespaces.find((item) => item.code === code);
@@ -495,6 +592,7 @@ $('allocateForm').addEventListener('submit', async (event) => {
 
   const namespace = $('allocateNamespace').value;
   const count = Number($('allocateCount').value);
+  const project = $('project').value.trim();
 
   if (!namespace) {
     renderAllocationError('请先从下拉列表选择 Namespace');
@@ -513,7 +611,7 @@ $('allocateForm').addEventListener('submit', async (event) => {
       body: JSON.stringify({
         namespace,
         count,
-        project: $('project').value.trim(),
+        project,
         symbol: count === 1 ? $('symbol').value.trim() : '',
         description: $('description').value.trim(),
         requirement: $('requirement').value.trim(),
@@ -523,7 +621,8 @@ $('allocateForm').addEventListener('submit', async (event) => {
 
     renderAllocationSuccess(data);
     state.selectedNamespace = data.namespace;
-    await loadNamespaces();
+    $('project').value = project;
+    await Promise.all([loadNamespaces(), loadProjects()]);
   } catch (error) {
     renderAllocationError(error.message);
   }
@@ -582,8 +681,46 @@ $('allocateNamespaceSearch').addEventListener('keydown', (event) => {
   }
 });
 
+const projectSearch = $('project');
+
+projectSearch.addEventListener('focus', () => {
+  projectSearch.select();
+
+  if ($('projectOptions').hidden) {
+    openProjectCombo();
+  }
+});
+
+projectSearch.addEventListener('click', () => {
+  if ($('projectOptions').hidden) {
+    openProjectCombo();
+  }
+});
+
+projectSearch.addEventListener('input', () => {
+  openProjectCombo();
+});
+
+projectSearch.addEventListener('keydown', (event) => {
+  if (event.key === 'ArrowDown') {
+    event.preventDefault();
+    moveProjectComboActive(1);
+  } else if (event.key === 'ArrowUp') {
+    event.preventDefault();
+    moveProjectComboActive(-1);
+  } else if (event.key === 'Enter' && state.projectComboActiveIndex >= 0) {
+    event.preventDefault();
+    selectProject(state.projectComboItems[state.projectComboActiveIndex].name);
+  } else if (event.key === 'Escape') {
+    closeProjectCombo();
+  } else if (event.key === 'Enter') {
+    closeProjectCombo();
+  }
+});
+
 document.addEventListener('mousedown', (event) => {
   if (!$('namespaceCombo').contains(event.target)) closeCombo();
+  if (!$('projectCombo').contains(event.target)) closeProjectCombo();
 });
 
 $('aliasForm').addEventListener('submit', async (event) => {
@@ -644,3 +781,6 @@ $('entryPageSize').addEventListener('change', (event) => {
 
 loadSkillPackageAvailability();
 loadNamespaces().catch(showMainError);
+loadProjects().catch((error) => {
+  renderAllocationError('项目列表加载失败：' + error.message);
+});
