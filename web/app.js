@@ -8,14 +8,9 @@ const state = {
 
 const $ = (id) => document.getElementById(id);
 
-function token() {
-  return sessionStorage.getItem('typeRegistryToken') || '';
-}
-
 async function api(path, options = {}) {
   const headers = { ...(options.headers || {}) };
   if (options.body) headers['Content-Type'] = 'application/json';
-  if (token()) headers.Authorization = 'Bearer ' + token();
 
   const response = await fetch(path, { ...options, headers });
   const body = await response.json().catch(() => ({}));
@@ -244,10 +239,5 @@ $('searchInput').addEventListener('keydown', (event) => {
 
 $('namespaceFilter').addEventListener('change', searchFromFirstPage);
 $('refreshButton').addEventListener('click', () => loadTypes(state.page).catch(showError));
-
-$('tokenButton').addEventListener('click', () => {
-  const value = prompt('API Token（仅保存在当前浏览器会话）', token());
-  if (value !== null) sessionStorage.setItem('typeRegistryToken', value.trim());
-});
 
 Promise.all([loadNamespaces(), loadTypes(1)]).catch(showError);
