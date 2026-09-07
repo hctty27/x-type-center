@@ -9,6 +9,12 @@ const state = {
   projects: [],
   projectComboItems: [],
   projectComboActiveIndex: -1,
+  revoke: {
+    mode: '',
+    entryId: 0,
+    allocationId: '',
+    requester: ''
+  },
   entries: {
     namespace: '',
     page: 1,
@@ -131,8 +137,8 @@ async function loadNamespaces() {
   const data = await api('/api/v1/namespaces');
   state.namespaces = data.items || [];
 
-  if (!state.selectedNamespace || !state.namespaces.some((ns) => ns.code === state.selectedNamespace)) {
-    state.selectedNamespace = state.namespaces[0]?.code || '';
+  if (state.selectedNamespace && !state.namespaces.some((ns) => ns.code === state.selectedNamespace)) {
+    state.selectedNamespace = '';
   }
 
   syncComboSelection();
@@ -488,6 +494,12 @@ async function loadEntries() {
     : '共 0 条';
 }
 
+function entryStatusClass(status) {
+  if (status === 'ACTIVE') return 'active';
+  if (status === 'REVOKED') return 'revoked';
+  return 'inactive';
+}
+
 function renderEntryTable(items) {
   if (!items.length) {
     $('entryTable').innerHTML = '<div class="empty">该 Namespace 下暂无匹配 entries</div>';
@@ -504,6 +516,7 @@ function renderEntryTable(items) {
         '<th class="entry-requirement">需求/工单</th>',
         '<th class="entry-requester">申请人</th>',
         '<th class="entry-status">状态</th>',
+        '<th class="entry-action">操作</th>',
       '</tr></thead>',
       '<tbody>',
         items.map((item) => [
@@ -514,12 +527,33 @@ function renderEntryTable(items) {
             '<td title="' + esc(item.description || '-') + '">' + esc(item.description || '-') + '</td>',
             '<td title="' + esc(item.requirement || '-') + '">' + esc(item.requirement || '-') + '</td>',
             '<td title="' + esc(item.requester || '-') + '">' + esc(item.requester || '-') + '</td>',
-            '<td><span class="status-pill ' + (item.status === 'ACTIVE' ? 'active' : 'inactive') + '">' + esc(item.status || '-') + '</span></td>',
+            '<td title="' + esc(item.revokeReason || '') + '"><span class="status-pill ' + entryStatusClass(item.status) + '">' + esc(item.status || '-') + '</span></td>',
+            '<td>' + (item.status === 'ACTIVE'
+              ? '<button class="entry-revoke-button" type="button" data-revoke-entry="' + esc(item.id) + '">撤回</button>'
+              : '<span class="entry-action-empty">-</span>') + '</td>',
           '</tr>'
         ].join('')).join(''),
       '</tbody>',
     '</table>'
   ].join('');
+
+  $('entryTable').querySelectorAll('[data-revoke-entry]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const item = items.find((entry) => String(entry.id) === button.dataset.revokeEntry);
+      if (!item) return;
+      openRevokeDialog({
+        mode: 'entry',
+        entryId: item.id,
+        requester: item.requester || '',
+        title: '撤回类型',
+        meta: [
+          item.namespace + ' · ' + item.value,
+          item.project || '未填写项目',
+          item.symbol || '未填写常量名'
+        ].join(' · ')
+      });
+    });
+  });
 }
 
 function renderAllocationLoading(count) {
@@ -558,8 +592,72 @@ function renderAllocationSuccess(data) {
       '<div class="feedback-values">',
         values.map((value) => '<code>' + esc(value) + '</code>').join(''),
       '</div>',
+      data.allocationId
+        ? '<button class="feedback-revoke-button" type="button" data-revoke-allocation="' + esc(data.allocationId) + '">撤回本次申请</button>'
+        : '',
     '</div>'
   ].join('');
+
+  const revokeButton = $('allocateResult').querySelector('[data-revoke-allocation]');
+  if (revokeButton) {
+    revokeButton.addEventListener('click', () => {
+      openRevokeDialog({
+        mode: 'allocation',
+        allocationId: data.allocationId,
+        requester: data.items?.[0]?.requester || $('requester').value.trim(),
+        title: '撤回本次申请',
+        meta: data.namespace + ' · ' + data.count + ' 个 · ' + rangeText
+      });
+    });
+  }
+}
+
+function renderAllocationRevoked(data) {
+  $('allocateResult').className = 'allocation-feedback is-revoked';
+  $('allocateResult').innerHTML = [
+    '<div class="feedback-card revoked">',
+      '<div class="feedback-head">',
+        '<div class="feedback-icon">↶</div>',
+        '<div>',
+          '<strong>已撤回</strong>',
+          '<small>' + esc(data.count || 0) + ' 个类型已标记为 REVOKED</small>',
+        '</div>',
+      '</div>',
+      '<div class="feedback-revoke-note">这些类型值仍永久占用，不会重新分配。</div>',
+    '</div>'
+  ].join('');
+}
+
+function openRevokeDialog(target) {
+  state.revoke = {
+    mode: target.mode || '',
+    entryId: Number(target.entryId || 0),
+    allocationId: target.allocationId || '',
+    requester: target.requester || ''
+  };
+
+  $('revokeDialogTitle').textContent = target.title || '撤回类型';
+  $('revokeDialogMeta').textContent = target.meta || '';
+  $('revokeRequester').value = target.requester || '';
+  $('revokeReason').value = '';
+  $('revokeMessage').textContent = '';
+  $('confirmRevokeButton').disabled = false;
+
+  const dialog = $('revokeDialog');
+  if (!dialog.open) dialog.showModal();
+  $('revokeReason').focus();
+}
+
+function closeRevokeDialog() {
+  if ($('revokeDialog').open) {
+    $('revokeDialog').close();
+  }
+  state.revoke = {
+    mode: '',
+    entryId: 0,
+    allocationId: '',
+    requester: ''
+  };
 }
 
 function renderAllocationError(message) {
@@ -721,6 +819,54 @@ projectSearch.addEventListener('keydown', (event) => {
 document.addEventListener('mousedown', (event) => {
   if (!$('namespaceCombo').contains(event.target)) closeCombo();
   if (!$('projectCombo').contains(event.target)) closeProjectCombo();
+});
+
+$('closeRevokeDialog').addEventListener('click', closeRevokeDialog);
+$('cancelRevokeButton').addEventListener('click', closeRevokeDialog);
+
+$('revokeDialog').addEventListener('click', (event) => {
+  if (event.target === $('revokeDialog')) closeRevokeDialog();
+});
+
+$('revokeForm').addEventListener('submit', async (event) => {
+  event.preventDefault();
+
+  const target = { ...state.revoke };
+  const reason = $('revokeReason').value.trim();
+  const requester = $('revokeRequester').value.trim();
+
+  if (!reason) {
+    $('revokeMessage').textContent = '请输入撤回原因';
+    return;
+  }
+
+  const path = target.mode === 'allocation'
+    ? '/api/v1/allocations/' + encodeURIComponent(target.allocationId) + '/revoke'
+    : '/api/v1/types/' + encodeURIComponent(target.entryId) + '/revoke';
+
+  $('revokeMessage').textContent = '正在撤回...';
+  $('confirmRevokeButton').disabled = true;
+
+  try {
+    const data = await api(path, {
+      method: 'POST',
+      body: JSON.stringify({ requester, reason })
+    });
+
+    closeRevokeDialog();
+
+    if (target.mode === 'allocation') {
+      renderAllocationRevoked(data);
+    }
+
+    await loadNamespaces();
+    if ($('entryDialog').open) {
+      await loadEntries();
+    }
+  } catch (error) {
+    $('revokeMessage').textContent = error.message;
+    $('confirmRevokeButton').disabled = false;
+  }
 });
 
 $('aliasForm').addEventListener('submit', async (event) => {
