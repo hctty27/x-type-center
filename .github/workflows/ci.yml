@@ -86,6 +86,13 @@ jobs:
           pattern: x-type-center-${{ github.run_number }}-linux-*
           path: release-assets
           merge-multiple: true
+      - name: Build skill package
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release-assets
+          (cd skills && zip -qr ../release-assets/type-registry-skill.zip type-registry)
+          (cd release-assets && sha256sum type-registry-skill.zip > type-registry-skill.zip.sha256)
       - name: Publish GitHub Release
         shell: bash
         env:
