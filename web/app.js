@@ -181,7 +181,10 @@ function syncComboSelection() {
 }
 
 function filterComboItems() {
-  const query = $('allocateNamespaceSearch').value.trim().toLowerCase();
+  const selected = state.namespaces.find((ns) => ns.code === $('allocateNamespace').value);
+  const rawQuery = $('allocateNamespaceSearch').value.trim();
+  const query = selected && rawQuery === namespaceLabel(selected) ? '' : rawQuery.toLowerCase();
+
   state.comboItems = state.namespaces.filter((ns) => {
     if (!query) return true;
     return ns.code.toLowerCase().includes(query)
@@ -220,7 +223,7 @@ function renderComboOptions() {
       ' aria-selected="' + (ns.code === state.selectedNamespace ? 'true' : 'false') + '"',
       ' data-namespace="' + esc(ns.code) + '">',
       '<span>' + esc(ns.code) + '</span>',
-      '<small>' + esc(ns.displayName || '未命名') + '</small>',
+      '<small>（' + esc(ns.displayName || '未命名') + '）</small>',
     '</div>'
   ].join('')).join('');
 
@@ -432,12 +435,17 @@ $('entryDialog').addEventListener('click', (event) => {
   if (event.target === $('entryDialog')) $('entryDialog').close();
 });
 
+let entrySearchTimer;
+
 $('entrySearchInput').addEventListener('input', () => {
-  state.entries.query = $('entrySearchInput').value.trim();
-  state.entries.page = 1;
-  loadEntries().catch((error) => {
-    $('entryTable').innerHTML = '<div class="error">' + esc(error.message) + '</div>';
-  });
+  clearTimeout(entrySearchTimer);
+  entrySearchTimer = setTimeout(() => {
+    state.entries.query = $('entrySearchInput').value.trim();
+    state.entries.page = 1;
+    loadEntries().catch((error) => {
+      $('entryTable').innerHTML = '<div class="error">' + esc(error.message) + '</div>';
+    });
+  }, 250);
 });
 
 $('entryPageSize').addEventListener('change', (event) => {
