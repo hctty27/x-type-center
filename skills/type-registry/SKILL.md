@@ -10,10 +10,11 @@ description: 跨项目全局类型查询、申请和校验。新增或修改 Act
 任何新增全局类型前：
 
 1. 禁止根据项目代码中的现有最大值自行递增。
-2. 先搜索 Registry，确认不存在相同或等价业务定义。
-3. 再查看目标 Namespace 状态。
-4. 仅使用 Registry `allocate` 返回的 value。
-5. 修改代码后执行 `validate`。
+2. 项目里的类型名称如果不是已确认的标准 Namespace code，必须先调用 `resolve`，禁止凭中文名称、类名或上下文自行猜测标准 Namespace。
+3. 再搜索 Registry，确认不存在相同或等价业务定义。
+4. 查看解析后的标准 Namespace 状态。
+5. 仅使用 Registry `allocate` 返回的 value。
+6. 修改代码后执行 `validate`。
 
 Registry 不使用 Token，不要向用户索要 Token，也不要添加 Authorization Header。
 
@@ -38,6 +39,17 @@ config.json
 python3 <skill-dir>/scripts/type_registry.py namespaces
 python3 <skill-dir>/scripts/type_registry.py status RankType
 ```
+
+### Namespace 解析
+
+项目术语可能和 Registry 标准名称不同，例如项目里叫“商城类型”，Registry 标准 Namespace 可能是 `ShopType（商店类型）`。遇到中文名称、项目类名、简称或其他非标准 code 时，先解析：
+
+```bash
+python3 <skill-dir>/scripts/type_registry.py resolve "商城类型"
+python3 <skill-dir>/scripts/type_registry.py resolve "ShopType"
+```
+
+`resolve` 会按标准 Namespace code、标准名称、已登记别名进行精确解析。返回 `matched=false` 时不得自行猜测 Namespace，应报告无法确定或让用户先在 X Type Center 中补充别名。
 
 ### 搜索
 
@@ -109,11 +121,12 @@ python3 <skill-dir>/scripts/type_registry.py validate \
 
 当需求需要新增全局类型时：
 
-1. 从目标常量类或业务上下文确定 Namespace。
-2. 使用业务中文名、英文常量名分别搜索，避免重复定义。
-3. 已存在时优先复用，不得再次申请。
-4. 不存在时查看 Namespace 状态。
-5. 根据需求数量调用 `allocate` 原子申请值；单个申请默认 `count=1`，多个值使用 `--count`。
-6. 仅将本次 `allocate` 返回的 value/values 写入项目代码，不得自行推算或二次申请替代。
-7. 完成修改后调用 `validate`；批量申请的值不传 symbol。
-8. Registry 不可访问时不得自行猜测新值，应明确报告无法安全分配。
+1. 从目标常量类或业务上下文提取 Namespace 候选名称。
+2. 如果候选不是已确认的标准 Namespace code，调用 `resolve`；别名命中后只使用返回的标准 `namespace.code` 进行后续操作。
+3. 使用业务中文名、英文常量名分别搜索，避免重复定义。
+4. 已存在时优先复用，不得再次申请。
+5. 不存在时查看标准 Namespace 状态。
+6. 根据需求数量调用 `allocate` 原子申请值；单个申请默认 `count=1`，多个值使用 `--count`。
+7. 仅将本次 `allocate` 返回的 value/values 写入项目代码，不得自行推算或二次申请替代。
+8. 完成修改后调用 `validate`；批量申请的值不传 symbol。
+9. `resolve` 未命中或 Registry 不可访问时不得自行猜测 Namespace 或新值，应明确报告无法安全处理。
