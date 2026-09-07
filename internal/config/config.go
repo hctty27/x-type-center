@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"net/netip"
 	"net/url"
 	"os"
 	"strconv"
@@ -18,6 +19,7 @@ type Config struct {
 	ShutdownTimeout   time.Duration
 	SkillPackagePath  string
 	PublicURL         string
+	TrustedProxies    []netip.Prefix
 	DBMaxOpenConns    int
 	DBMaxIdleConns    int
 	DBConnMaxLifetime time.Duration
@@ -46,7 +48,45 @@ func Load() (Config, error) {
 			return Config{}, fmt.Errorf("TYPE_REGISTRY_PUBLIC_URL must be an absolute http(s) URL")
 		}
 	}
+
+	trustedProxies, err := proxyPrefixesEnv("TYPE_REGISTRY_TRUSTED_PROXIES")
+	if err != nil {
+		return Config{}, err
+	}
+	cfg.TrustedProxies = trustedProxies
 	return cfg, nil
+}
+
+func proxyPrefixesEnv(key string) ([]netip.Prefix, error) {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return nil, nil
+	}
+
+	parts := strings.Split(raw, ",")
+	result := make([]netip.Prefix, 0, len(parts))
+	for _, part := range parts {
+		value := strings.TrimSpace(part)
+		if value == "" {
+			continue
+		}
+
+		if prefix, err := netip.ParsePrefix(value); err == nil {
+			result = append(result, prefix.Masked())
+			continue
+		}
+
+		addr, err := netip.ParseAddr(value)
+		if err != nil {
+			return nil, fmt.Errorf("%s contains invalid IP/CIDR %q", key, value)
+		}
+		bits := 128
+		if addr.Is4() {
+			bits = 32
+		}
+		result = append(result, netip.PrefixFrom(addr.Unmap(), bits))
+	}
+	return result, nil
 }
 
 func env(key, fallback string) string {
