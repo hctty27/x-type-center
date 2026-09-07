@@ -263,75 +263,94 @@ func scanEntry(row scanner) (model.TypeEntry, error) {
 }
 
 func (s *MySQL) Allocate(ctx context.Context, req model.AllocateRequest) (model.TypeEntry, error) {
+	items, err := s.AllocateBatch(ctx, req, 1)
+	if err != nil {
+		return model.TypeEntry{}, err
+	}
+	return items[0], nil
+}
+
+func (s *MySQL) AllocateBatch(ctx context.Context, req model.AllocateRequest, count int) ([]model.TypeEntry, error) {
+	if count <= 0 {
+		return nil, fmt.Errorf("allocation count must be positive")
+	}
+
 	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
 	if err != nil {
-		return model.TypeEntry{}, fmt.Errorf("begin allocation tx: %w", err)
+		return nil, fmt.Errorf("begin allocation tx: %w", err)
 	}
 	defer tx.Rollback()
 
 	ns, err := lockNamespace(ctx, tx, req.Namespace)
 	if err != nil {
-		return model.TypeEntry{}, err
+		return nil, err
 	}
 
-	candidate, fromReserved, err := chooseCandidate(ctx, tx, ns, req.Project)
-	if err != nil {
-		return model.TypeEntry{}, err
-	}
+	items := make([]model.TypeEntry, 0, count)
+	for i := 0; i < count; i++ {
+		candidate, fromReserved, err := chooseCandidate(ctx, tx, ns, req.Project)
+		if err != nil {
+			return nil, err
+		}
 
-	result, err := tx.ExecContext(ctx, `
-		INSERT INTO type_entries(namespace_id, value, symbol, project, description, requirement_ref, requester, source, status)
-		VALUES (?, ?, NULLIF(?, ''), ?, ?, ?, ?, 'registry', 'ACTIVE')`,
-		ns.ID, candidate, req.Symbol, req.Project, req.Description, req.Requirement, req.Requester)
-	if err != nil {
-		if isDuplicateKey(err) {
-			return model.TypeEntry{}, fmt.Errorf("%w: value or symbol already registered", ErrConflict)
+		result, err := tx.ExecContext(ctx, `
+			INSERT INTO type_entries(namespace_id, value, symbol, project, description, requirement_ref, requester, source, status)
+			VALUES (?, ?, NULLIF(?, ''), ?, ?, ?, ?, 'registry', 'ACTIVE')`,
+			ns.ID, candidate, req.Symbol, req.Project, req.Description, req.Requirement, req.Requester)
+		if err != nil {
+			if isDuplicateKey(err) {
+				return nil, fmt.Errorf("%w: value or symbol already registered", ErrConflict)
+			}
+			return nil, fmt.Errorf("insert allocated type: %w", err)
 		}
-		return model.TypeEntry{}, fmt.Errorf("insert allocated type: %w", err)
-	}
-	entryID, err := result.LastInsertId()
-	if err != nil {
-		return model.TypeEntry{}, fmt.Errorf("read allocated id: %w", err)
-	}
+		entryID, err := result.LastInsertId()
+		if err != nil {
+			return nil, fmt.Errorf("read allocated id: %w", err)
+		}
 
-	if !fromReserved || candidate >= ns.NextValue {
-		next, err := nextGlobalCandidate(ctx, tx, ns, candidate+1)
-		if err != nil && !errors.Is(err, ErrNamespaceExhausted) {
-			return model.TypeEntry{}, err
+		if !fromReserved || candidate >= ns.NextValue {
+			next, err := nextGlobalCandidate(ctx, tx, ns, candidate+1)
+			if err != nil && !errors.Is(err, ErrNamespaceExhausted) {
+				return nil, err
+			}
+			if errors.Is(err, ErrNamespaceExhausted) {
+				next = candidate + 1
+			}
+			if _, err := tx.ExecContext(ctx, `UPDATE type_namespaces SET next_value = ? WHERE id = ?`, next, ns.ID); err != nil {
+				return nil, fmt.Errorf("update namespace cursor: %w", err)
+			}
+			ns.NextValue = next
 		}
-		if errors.Is(err, ErrNamespaceExhausted) {
-			next = candidate + 1
-		}
-		if _, err := tx.ExecContext(ctx, `UPDATE type_namespaces SET next_value = ? WHERE id = ?`, next, ns.ID); err != nil {
-			return model.TypeEntry{}, fmt.Errorf("update namespace cursor: %w", err)
-		}
-	}
 
-	if _, err := tx.ExecContext(ctx, `
-		INSERT INTO audit_logs(action, namespace_code, entry_value, actor, detail)
-		VALUES ('ALLOCATE', ?, ?, ?, JSON_OBJECT('project', ?, 'symbol', ?, 'description', ?))`,
-		req.Namespace, candidate, req.Requester, req.Project, req.Symbol, req.Description); err != nil {
-		return model.TypeEntry{}, fmt.Errorf("write audit log: %w", err)
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO audit_logs(action, namespace_code, entry_value, actor, detail)
+			VALUES ('ALLOCATE', ?, ?, ?, JSON_OBJECT('project', ?, 'symbol', ?, 'description', ?))`,
+			req.Namespace, candidate, req.Requester, req.Project, req.Symbol, req.Description); err != nil {
+			return nil, fmt.Errorf("write audit log: %w", err)
+		}
+
+		now := time.Now().UTC()
+		items = append(items, model.TypeEntry{
+			ID:          entryID,
+			NamespaceID: ns.ID,
+			Namespace:   ns.Code,
+			Value:       candidate,
+			Symbol:      req.Symbol,
+			Project:     req.Project,
+			Description: req.Description,
+			Requirement: req.Requirement,
+			Requester:   req.Requester,
+			Source:      "registry",
+			Status:      model.StatusActive,
+			CreatedAt:   now,
+			UpdatedAt:   now,
+		})
 	}
 
 	if err := tx.Commit(); err != nil {
-		return model.TypeEntry{}, fmt.Errorf("commit allocation: %w", err)
+		return nil, fmt.Errorf("commit allocation: %w", err)
 	}
-	return model.TypeEntry{
-		ID:          entryID,
-		NamespaceID: ns.ID,
-		Namespace:   ns.Code,
-		Value:       candidate,
-		Symbol:      req.Symbol,
-		Project:     req.Project,
-		Description: req.Description,
-		Requirement: req.Requirement,
-		Requester:   req.Requester,
-		Source:      "registry",
-		Status:      model.StatusActive,
-		CreatedAt:   time.Now().UTC(),
-		UpdatedAt:   time.Now().UTC(),
-	}, nil
+	return items, nil
 }
 
 func lockNamespace(ctx context.Context, tx *sql.Tx, code string) (model.Namespace, error) {
