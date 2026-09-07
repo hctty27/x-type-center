@@ -1,13 +1,24 @@
-.PHONY: run build cli test fmt import docker-up docker-down
+.PHONY: run build build-linux cli test fmt import migrate docker-up docker-down
+
+VERSION ?= dev
+COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
+BUILD_TIME ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
+LDFLAGS = -s -w -X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.buildTime=$(BUILD_TIME)
 
 run:
-	go run ./cmd/server
+	go run ./cmd/x-type-center server
 
 build:
-	go build ./cmd/server
+	mkdir -p bin
+	CGO_ENABLED=0 go build -trimpath -ldflags="$(LDFLAGS)" -o bin/x-type-center ./cmd/x-type-center
+
+build-linux:
+	mkdir -p dist
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="$(LDFLAGS)" -o dist/x-type-center-linux-amd64 ./cmd/x-type-center
 
 cli:
-	go build -o bin/type-registry ./cmd/type-registry
+	mkdir -p bin
+	CGO_ENABLED=0 go build -trimpath -o bin/type-registry ./cmd/type-registry
 
 test:
 	go test ./...
@@ -17,7 +28,10 @@ fmt:
 
 import:
 	@test -n "$(FILE)" || (echo "usage: make import FILE=/path/to/types.xlsx" && exit 1)
-	go run ./cmd/import-xlsx --file "$(FILE)" --mapping config/import-mapping.json
+	go run ./cmd/x-type-center import --file "$(FILE)"
+
+migrate:
+	go run ./cmd/x-type-center migrate
 
 docker-up:
 	docker compose up -d --build
