@@ -135,6 +135,7 @@ func (r *Registry) AllocateBatch(ctx context.Context, req model.AllocateBatchReq
 		Description: req.Description,
 		Requirement: req.Requirement,
 		Requester:   req.Requester,
+		ClientIP:    req.ClientIP,
 	})
 	if err != nil {
 		return model.AllocateBatchResult{}, err
@@ -168,7 +169,7 @@ func (r *Registry) RevokeEntry(ctx context.Context, id int64, req model.RevokeRe
 	if err != nil {
 		return model.TypeEntry{}, err
 	}
-	return r.store.RevokeEntry(ctx, id, normalized.Requester, normalized.Reason)
+	return r.store.RevokeEntry(ctx, id, normalized.Requester, normalized.Reason, normalized.ClientIP)
 }
 
 func (r *Registry) RevokeAllocation(ctx context.Context, allocationID string, req model.RevokeRequest) (model.RevokeAllocationResult, error) {
@@ -180,7 +181,7 @@ func (r *Registry) RevokeAllocation(ctx context.Context, allocationID string, re
 	if err != nil {
 		return model.RevokeAllocationResult{}, err
 	}
-	items, err := r.store.RevokeAllocation(ctx, allocationID, normalized.Requester, normalized.Reason)
+	items, err := r.store.RevokeAllocation(ctx, allocationID, normalized.Requester, normalized.Reason, normalized.ClientIP)
 	if err != nil {
 		return model.RevokeAllocationResult{}, err
 	}
