@@ -80,11 +80,8 @@ func proxyPrefixesEnv(key string) ([]netip.Prefix, error) {
 		if err != nil {
 			return nil, fmt.Errorf("%s contains invalid IP/CIDR %q", key, value)
 		}
-		bits := 128
-		if addr.Is4() {
-			bits = 32
-		}
-		result = append(result, netip.PrefixFrom(addr.Unmap(), bits))
+		addr = addr.Unmap()
+		result = append(result, netip.PrefixFrom(addr, addr.BitLen()))
 	}
 	return result, nil
 }
