@@ -26,3 +26,20 @@ func TestParseValue(t *testing.T) {
 		})
 	}
 }
+
+func TestDefaultMapping(t *testing.T) {
+	mapping, err := DefaultMapping()
+	if err != nil {
+		t.Fatalf("DefaultMapping() error = %v", err)
+	}
+	if len(mapping.Sheets) != 5 {
+		t.Fatalf("DefaultMapping() sheets = %d, want 5", len(mapping.Sheets))
+	}
+	columns := 0
+	for _, sheet := range mapping.Sheets {
+		columns += len(sheet.Columns)
+	}
+	if columns != 59 {
+		t.Fatalf("DefaultMapping() columns = %d, want 59", columns)
+	}
+}
