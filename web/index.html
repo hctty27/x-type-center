@@ -29,14 +29,14 @@
     <section class="panel workspace-panel">
       <div class="panel-title">
         <div>
-          <h2 id="workspaceTitle">Namespace 总览</h2>
-          <span id="workspaceMeta" class="muted">点击卡片查看详情</span>
+          <h2>类型列表</h2>
+          <span id="workspaceMeta" class="muted">加载中...</span>
         </div>
         <button id="refreshButton" class="secondary compact-button">刷新</button>
       </div>
 
-      <div id="namespaceTable" class="namespace-grid"></div>
-      <div id="searchResult" class="result-grid hidden"></div>
+      <div id="typeTable" class="table-shell"></div>
+      <div id="pagination" class="pagination"></div>
     </section>
 
     <aside class="side-column">
@@ -83,9 +83,9 @@
       <section class="panel detail-panel">
         <div class="panel-title">
           <h2>Namespace 详情</h2>
-          <span class="muted">当前分配状态</span>
+          <span class="muted">点击列表中的 Namespace</span>
         </div>
-        <div id="namespaceDetail" class="detail-empty">点击左侧 Namespace 查看详情。</div>
+        <div id="namespaceDetail" class="detail-empty">点击列表中的 Namespace 查看详情。</div>
       </section>
     </aside>
   </main>
