@@ -85,6 +85,7 @@ type AllocateRequest struct {
 	Description string `json:"description"`
 	Requirement string `json:"requirement"`
 	Requester   string `json:"requester"`
+	ClientIP    string `json:"-"`
 }
 
 type AllocateBatchRequest struct {
@@ -95,6 +96,7 @@ type AllocateBatchRequest struct {
 	Requirement string `json:"requirement"`
 	Requester   string `json:"requester"`
 	Count       int    `json:"count"`
+	ClientIP    string `json:"-"`
 }
 
 type AllocateBatchResult struct {
@@ -108,6 +110,7 @@ type AllocateBatchResult struct {
 type RevokeRequest struct {
 	Requester string `json:"requester"`
 	Reason    string `json:"reason"`
+	ClientIP  string `json:"-"`
 }
 
 type RevokeAllocationResult struct {
