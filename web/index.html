@@ -7,87 +7,121 @@
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-  <header class="topbar">
-    <div class="brand">
-      <h1>X Type Center</h1>
-      <span>跨项目全局类型注册中心</span>
-    </div>
-
-    <div class="global-search">
-      <input id="searchInput" autocomplete="off" placeholder="搜索类型值、常量名、描述、项目，例如 RankType / 447">
-      <select id="namespaceFilter" aria-label="Namespace 筛选">
-        <option value="">全部 Namespace</option>
-      </select>
-      <button id="searchButton">搜索</button>
-      <button id="clearSearchButton" class="secondary">清空</button>
-    </div>
-
-  </header>
-
-  <main class="dashboard">
-    <section class="panel workspace-panel">
-      <div class="panel-title">
-        <div>
-          <h2>类型列表</h2>
-          <span id="workspaceMeta" class="muted">加载中...</span>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark">X</div>
+        <div class="brand-copy">
+          <h1>X Type Center</h1>
+          <span>跨项目全局类型注册中心</span>
         </div>
-        <button id="refreshButton" class="secondary compact-button">刷新</button>
       </div>
 
-      <div id="typeTable" class="table-shell"></div>
-      <div id="pagination" class="pagination"></div>
-    </section>
+      <div class="top-actions">
+        <div class="search-box">
+          <span class="search-icon">⌕</span>
+          <input id="searchInput" autocomplete="off" placeholder="搜索 Namespace、名称或描述">
+          <button id="clearSearchButton" class="ghost-button" type="button">清空</button>
+        </div>
+        <button id="searchButton" type="button">搜索</button>
+      </div>
+    </header>
 
-    <aside class="side-column">
-      <section class="panel allocate-panel">
-        <div class="panel-title">
-          <h2>申请新类型</h2>
-          <span class="muted">自动分配下一可用值</span>
+    <main class="dashboard">
+      <section class="panel namespace-panel">
+        <div class="panel-heading">
+          <div>
+            <div class="eyebrow">REGISTRY OVERVIEW</div>
+            <h2>Namespace</h2>
+            <p>每个 Namespace 仅显示一行，数据直接来自 type_namespaces。</p>
+          </div>
+          <button id="refreshButton" class="secondary-button" type="button">刷新数据</button>
         </div>
 
-        <form id="allocateForm" class="allocate-form">
-          <div class="form-row">
-            <label>Namespace
-              <select id="allocateNamespace" required></select>
-            </label>
-            <label>项目
-              <input id="project" required placeholder="XH2 / SLG">
-            </label>
+        <div class="summary-grid">
+          <div class="summary-card">
+            <span>Namespace 总数</span>
+            <strong id="namespaceCount">-</strong>
           </div>
-
-          <label>常量名
-            <input id="symbol" required placeholder="CHAOS_REALM_RANK">
-          </label>
-
-          <label>描述
-            <textarea id="description" required placeholder="这个类型是做什么的"></textarea>
-          </label>
-
-          <div class="form-row">
-            <label>需求/工单
-              <input id="requirement" placeholder="XH2-3124">
-            </label>
-            <label>申请人
-              <input id="requester" placeholder="姓名 / Git 用户">
-            </label>
+          <div class="summary-card">
+            <span>活跃 Namespace</span>
+            <strong id="activeCount">-</strong>
           </div>
-
-          <div class="submit-row">
-            <button type="submit">申请类型</button>
-            <pre id="allocateResult" class="result inline-result"></pre>
+          <div class="summary-card">
+            <span>已登记类型</span>
+            <strong id="usedCount">-</strong>
           </div>
-        </form>
-      </section>
-
-      <section class="panel detail-panel">
-        <div class="panel-title">
-          <h2>Namespace 详情</h2>
-          <span class="muted">点击列表中的 Namespace</span>
         </div>
-        <div id="namespaceDetail" class="detail-empty">点击列表中的 Namespace 查看详情。</div>
+
+        <div class="table-heading">
+          <span id="workspaceMeta" class="muted">加载中...</span>
+          <span class="table-hint">点击一行查看详情</span>
+        </div>
+
+        <div id="namespaceTable" class="table-shell"></div>
+        <div id="pagination" class="pagination"></div>
       </section>
-    </aside>
-  </main>
+
+      <aside class="side-column">
+        <section class="panel allocate-panel">
+          <div class="panel-heading compact">
+            <div>
+              <div class="eyebrow">ALLOCATE</div>
+              <h2>申请新类型</h2>
+              <p>Namespace 自动选中，其余信息均可不填。</p>
+            </div>
+          </div>
+
+          <form id="allocateForm" class="allocate-form">
+            <label>
+              <span>Namespace</span>
+              <select id="allocateNamespace"></select>
+            </label>
+
+            <div class="form-row">
+              <label>
+                <span>项目 <em>可选</em></span>
+                <input id="project" placeholder="XH2 / SLG">
+              </label>
+              <label>
+                <span>常量名 <em>可选</em></span>
+                <input id="symbol" placeholder="CHAOS_REALM_RANK">
+              </label>
+            </div>
+
+            <label>
+              <span>描述 <em>可选</em></span>
+              <textarea id="description" placeholder="这个类型是做什么的"></textarea>
+            </label>
+
+            <div class="form-row">
+              <label>
+                <span>需求/工单 <em>可选</em></span>
+                <input id="requirement" placeholder="XH2-3124">
+              </label>
+              <label>
+                <span>申请人 <em>可选</em></span>
+                <input id="requester" placeholder="姓名 / Git 用户">
+              </label>
+            </div>
+
+            <button type="submit" class="allocate-button">申请下一可用值</button>
+            <div id="allocateResult" class="allocate-result muted">尚未申请</div>
+          </form>
+        </section>
+
+        <section class="panel detail-panel">
+          <div class="panel-heading compact">
+            <div>
+              <div class="eyebrow">DETAIL</div>
+              <h2>Namespace 详情</h2>
+            </div>
+          </div>
+          <div id="namespaceDetail" class="detail-empty">点击左侧任意 Namespace 查看详情。</div>
+        </section>
+      </aside>
+    </main>
+  </div>
 
   <script src="/app.js"></script>
 </body>
