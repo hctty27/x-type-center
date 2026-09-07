@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/hctty27/x-type-center/internal/model"
 	"github.com/hctty27/x-type-center/internal/store"
@@ -32,6 +33,71 @@ func (r *Registry) GetNamespace(ctx context.Context, code string) (model.Namespa
 	}
 	ranges, err := r.store.ListReservedRanges(ctx, ns.ID)
 	return ns, ranges, err
+}
+
+func (r *Registry) ResolveNamespace(ctx context.Context, query string) (model.NamespaceResolveResult, error) {
+	query = strings.TrimSpace(query)
+	if query == "" {
+		return model.NamespaceResolveResult{}, fmt.Errorf("query is required")
+	}
+	ns, matchType, matchedAlias, err := r.store.ResolveNamespace(ctx, query)
+	if errors.Is(err, store.ErrNotFound) {
+		return model.NamespaceResolveResult{Matched: false}, nil
+	}
+	if err != nil {
+		return model.NamespaceResolveResult{}, err
+	}
+	return model.NamespaceResolveResult{
+		Matched:      true,
+		MatchType:    matchType,
+		Namespace:    &ns,
+		MatchedAlias: matchedAlias,
+	}, nil
+}
+
+func (r *Registry) ListNamespaceAliases(ctx context.Context, code string) ([]model.NamespaceAlias, error) {
+	ns, err := r.store.GetNamespace(ctx, strings.TrimSpace(code))
+	if err != nil {
+		return nil, err
+	}
+	return r.store.ListNamespaceAliases(ctx, ns.ID)
+}
+
+func (r *Registry) CreateNamespaceAlias(ctx context.Context, code string, req model.CreateNamespaceAliasRequest) (model.NamespaceAlias, error) {
+	ns, err := r.store.GetNamespace(ctx, strings.TrimSpace(code))
+	if err != nil {
+		return model.NamespaceAlias{}, err
+	}
+
+	alias := strings.TrimSpace(req.Alias)
+	if alias == "" {
+		return model.NamespaceAlias{}, fmt.Errorf("alias is required")
+	}
+	if utf8.RuneCountInString(alias) > 255 {
+		return model.NamespaceAlias{}, fmt.Errorf("invalid alias: must be at most 255 characters")
+	}
+	if strings.EqualFold(alias, ns.Code) || strings.EqualFold(alias, ns.DisplayName) {
+		return model.NamespaceAlias{}, fmt.Errorf("invalid alias: duplicates namespace code or display name")
+	}
+	conflict, err := r.store.NamespaceLabelExists(ctx, alias)
+	if err != nil {
+		return model.NamespaceAlias{}, err
+	}
+	if conflict {
+		return model.NamespaceAlias{}, fmt.Errorf("%w: alias conflicts with a namespace code or display name", store.ErrConflict)
+	}
+	return r.store.CreateNamespaceAlias(ctx, ns.ID, alias)
+}
+
+func (r *Registry) DeleteNamespaceAlias(ctx context.Context, code string, aliasID int64) error {
+	if aliasID <= 0 {
+		return fmt.Errorf("invalid alias id")
+	}
+	ns, err := r.store.GetNamespace(ctx, strings.TrimSpace(code))
+	if err != nil {
+		return err
+	}
+	return r.store.DeleteNamespaceAlias(ctx, ns.ID, aliasID)
 }
 
 func (r *Registry) Search(ctx context.Context, params model.SearchParams) (model.SearchResult, error) {
