@@ -46,7 +46,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          VERSION=v0.1.0
+          SHORT_SHA="${GITHUB_SHA::7}"
+          VERSION="main-${GITHUB_RUN_NUMBER}-${SHORT_SHA}"
           ARCH="${{ matrix.arch }}"
           COMMIT="${GITHUB_SHA}"
           BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -106,9 +107,42 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: x-type-center-v0.1.0-linux-${{ matrix.arch }}
+          name: x-type-center-${{ github.run_number }}-linux-${{ matrix.arch }}
           path: |
-            dist/x-type-center-v0.1.0-linux-${{ matrix.arch }}.tar.gz
-            dist/x-type-center-v0.1.0-linux-${{ matrix.arch }}.tar.gz.sha256
+            dist/*.tar.gz
+            dist/*.tar.gz.sha256
           if-no-files-found: error
           retention-days: 30
+
+  release:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    needs: package
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: x-type-center-${{ github.run_number }}-linux-*
+          path: release-assets
+          merge-multiple: true
+      - name: Publish GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          SHORT_SHA="${GITHUB_SHA::7}"
+          TAG="main-${GITHUB_RUN_NUMBER}-${SHORT_SHA}"
+          TITLE="X Type Center ${TAG}"
+
+          if gh release view "${TAG}" >/dev/null 2>&1; then
+            gh release upload "${TAG}" release-assets/* --clobber
+          else
+            gh release create "${TAG}" release-assets/* \
+              --target "${GITHUB_SHA}" \
+              --title "${TITLE}" \
+              --generate-notes \
+              --latest
+          fi
