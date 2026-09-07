@@ -19,5 +19,6 @@ jobs:
       - run: test -z "$(find ./cmd ./internal ./web -name '*.go' -print0 | xargs -0 gofmt -l)"
       - run: go vet ./...
       - run: go test ./...
-      - run: go build ./cmd/x-type-center ./cmd/type-registry
-      - run: ./x-type-center version
+      - run: go build -o /tmp/x-type-center ./cmd/x-type-center
+      - run: go build -o /tmp/type-registry ./cmd/type-registry
+      - run: /tmp/x-type-center version
