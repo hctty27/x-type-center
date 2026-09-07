@@ -14,6 +14,7 @@ type Config struct {
 	WriteTimeout      time.Duration
 	IdleTimeout       time.Duration
 	ShutdownTimeout   time.Duration
+	SkillPackagePath  string
 	DBMaxOpenConns    int
 	DBMaxIdleConns    int
 	DBConnMaxLifetime time.Duration
@@ -27,6 +28,7 @@ func Load() (Config, error) {
 		WriteTimeout:      durationEnv("TYPE_REGISTRY_WRITE_TIMEOUT", 15*time.Second),
 		IdleTimeout:       durationEnv("TYPE_REGISTRY_IDLE_TIMEOUT", 60*time.Second),
 		ShutdownTimeout:   durationEnv("TYPE_REGISTRY_SHUTDOWN_TIMEOUT", 10*time.Second),
+		SkillPackagePath:  env("TYPE_REGISTRY_SKILL_PACKAGE_PATH", ""),
 		DBMaxOpenConns:    intEnv("TYPE_REGISTRY_DB_MAX_OPEN_CONNS", 20),
 		DBMaxIdleConns:    intEnv("TYPE_REGISTRY_DB_MAX_IDLE_CONNS", 10),
 		DBConnMaxLifetime: durationEnv("TYPE_REGISTRY_DB_CONN_MAX_LIFETIME", 30*time.Minute),
