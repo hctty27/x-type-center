@@ -39,6 +39,7 @@ func (a *API) Routes(static http.Handler) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", a.health)
 	mux.HandleFunc("GET /api/v1/namespaces", a.listNamespaces)
+	mux.HandleFunc("GET /api/v1/projects", a.listProjects)
 	mux.HandleFunc("GET /api/v1/namespaces/resolve", a.resolveNamespace)
 	mux.HandleFunc("GET /api/v1/namespaces/{code}", a.getNamespace)
 	mux.HandleFunc("GET /api/v1/namespaces/{code}/aliases", a.listNamespaceAliases)
@@ -66,6 +67,16 @@ func (a *API) listNamespaces(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"items": items})
 }
+
+func (a *API) listProjects(w http.ResponseWriter, r *http.Request) {
+	items, err := a.registry.ListProjects(r.Context())
+	if err != nil {
+		a.fail(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"items": items})
+}
+
 
 func (a *API) resolveNamespace(w http.ResponseWriter, r *http.Request) {
 	result, err := a.registry.ResolveNamespace(r.Context(), r.URL.Query().Get("q"))
