@@ -306,21 +306,33 @@ search -> status -> allocate -> 修改代码 -> validate
 
 ### Web 下载技能包
 
-页面右上角提供“下载技能包”按钮。服务端从配置的本地文件路径读取 Skill ZIP，并通过同源接口下载：
+页面右上角提供“下载技能包”按钮。服务端从配置的本地模板 ZIP 读取 Skill，在下载时实时把 `type-registry/config.json` 中的 `baseUrl` 改成当前部署地址：
 
 ```text
 GET /api/v1/skill-package
 ```
 
-配置示例：
+推荐生产配置：
 
 ```bash
 TYPE_REGISTRY_SKILL_PACKAGE_PATH=/var/lib/x-type-center/type-registry-skill.zip
+TYPE_REGISTRY_PUBLIC_URL=https://x-type-center.internal
 ```
 
-未配置路径或文件不存在时，页面按钮自动禁用。
+下载后的配置会自动变成：
 
-本地生成 Skill ZIP：
+```json
+{
+  "baseUrl": "https://x-type-center.internal",
+  "timeoutSeconds": 10
+}
+```
+
+`TYPE_REGISTRY_PUBLIC_URL` 未配置时，服务端会回退到当前请求的协议和 Host。反向代理或 HTTPS 终止场景应显式配置 `TYPE_REGISTRY_PUBLIC_URL`，避免生成错误的 `http://` 地址。服务端不会自动信任 `X-Forwarded-*` 请求头。
+
+未配置 Skill 路径、文件不存在或 ZIP 内缺少 `type-registry/config.json` 时，页面按钮会不可用或下载失败。
+
+本地生成 Skill ZIP 模板：
 
 ```bash
 make skill-package
@@ -341,7 +353,8 @@ type-registry-skill.zip.sha256
 |---|---|
 | `TYPE_REGISTRY_ADDR` | `:8080` |
 | `TYPE_REGISTRY_DSN` | 本地 MySQL DSN |
-| `TYPE_REGISTRY_SKILL_PACKAGE_PATH` | 空；Skill ZIP 本地绝对路径 |
+| `TYPE_REGISTRY_SKILL_PACKAGE_PATH` | 空；Skill ZIP 模板本地绝对路径 |
+| `TYPE_REGISTRY_PUBLIC_URL` | 空；下载 Skill 时注入的服务地址 |
 | `TYPE_REGISTRY_READ_TIMEOUT` | `10s` |
 | `TYPE_REGISTRY_WRITE_TIMEOUT` | `15s` |
 | `TYPE_REGISTRY_IDLE_TIMEOUT` | `60s` |
