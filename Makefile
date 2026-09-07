@@ -13,7 +13,7 @@ test:
 	go test ./...
 
 fmt:
-	gofmt -w ./cmd ./internal ./web
+	find ./cmd ./internal ./web -name '*.go' -print0 | xargs -0 gofmt -w
 
 import:
 	@test -n "$(FILE)" || (echo "usage: make import FILE=/path/to/types.xlsx" && exit 1)
