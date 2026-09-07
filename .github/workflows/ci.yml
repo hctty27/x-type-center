@@ -14,7 +14,15 @@ jobs:
         with:
           go-version: '1.27.1'
           cache: false
-      - run: go mod download
+      - run: go mod tidy
+      - name: Print module metadata
+        run: |
+          echo '---GOMOD---'
+          base64 -w0 go.mod
+          echo
+          echo '---GOSUM---'
+          base64 -w0 go.sum
+          echo
       - run: test -z "$(find ./cmd ./internal ./web -name '*.go' -print0 | xargs -0 gofmt -l)"
       - run: go vet ./...
       - run: go test ./...
