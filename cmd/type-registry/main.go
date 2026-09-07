@@ -42,6 +42,8 @@ func main() {
 		err = search(c, os.Args[2:])
 	case "allocate":
 		err = allocate(c, os.Args[2:])
+	case "revoke":
+		err = revoke(c, os.Args[2:])
 	case "validate":
 		err = validate(c, os.Args[2:])
 	default:
@@ -106,6 +108,31 @@ func allocate(c client, args []string) error {
 		"namespace": *namespace, "project": *project, "symbol": *symbol,
 		"description": *description, "requirement": *requirement, "requester": *requester,
 	})
+}
+
+func revoke(c client, args []string) error {
+	fs := flag.NewFlagSet("revoke", flag.ContinueOnError)
+	entryID := fs.Int64("id", 0, "type entry id")
+	allocationID := fs.String("allocation", "", "allocation id")
+	reason := fs.String("reason", "", "revoke reason")
+	requester := fs.String("requester", os.Getenv("USER"), "requester")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if (*entryID > 0) == (*allocationID != "") {
+		return errors.New("exactly one of --id or --allocation is required")
+	}
+	if strings.TrimSpace(*reason) == "" {
+		return errors.New("--reason is required")
+	}
+	payload := map[string]any{
+		"requester": *requester,
+		"reason":    *reason,
+	}
+	if *entryID > 0 {
+		return c.post("/api/v1/types/"+strconv.FormatInt(*entryID, 10)+"/revoke", payload)
+	}
+	return c.post("/api/v1/allocations/"+url.PathEscape(*allocationID)+"/revoke", payload)
 }
 
 func validate(c client, args []string) error {
@@ -179,5 +206,6 @@ func usage() {
   resolve <namespace-or-alias>
   search [--namespace N] [--project P] <keyword>
   allocate --namespace N [--project P] [--symbol SYMBOL] [--description TEXT] [--requirement REF] [--requester USER]
+  revoke (--id ID | --allocation ALLOCATION_ID) --reason TEXT [--requester USER]
   validate --namespace N --value V [--symbol SYMBOL] [--project P]`)
 }
