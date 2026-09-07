@@ -8,51 +8,86 @@
 </head>
 <body>
   <header class="topbar">
-    <div>
+    <div class="brand">
       <h1>X Type Center</h1>
-      <p>跨项目全局类型注册中心</p>
+      <span>跨项目全局类型注册中心</span>
     </div>
-    <button id="tokenButton" class="secondary">设置 API Token</button>
+
+    <div class="global-search">
+      <input id="searchInput" autocomplete="off" placeholder="搜索类型值、常量名、描述、项目，例如 RankType / 447">
+      <select id="namespaceFilter" aria-label="Namespace 筛选">
+        <option value="">全部 Namespace</option>
+      </select>
+      <button id="searchButton">搜索</button>
+      <button id="clearSearchButton" class="secondary">清空</button>
+    </div>
+
+    <button id="tokenButton" class="secondary token-button">API Token</button>
   </header>
 
-  <main>
-    <section class="panel search-panel">
-      <div class="search-row">
-        <input id="searchInput" placeholder="搜索类型值、常量名、描述、项目，例如：混沌灵域 / RankType / 447">
-        <select id="namespaceFilter"><option value="">全部 Namespace</option></select>
-        <button id="searchButton">搜索</button>
-      </div>
-      <div id="searchResult" class="table-wrap"></div>
-    </section>
-
-    <section class="grid">
-      <div class="panel">
-        <div class="panel-title">
-          <h2>Namespaces</h2>
-          <button id="refreshButton" class="secondary">刷新</button>
+  <main class="dashboard">
+    <section class="panel workspace-panel">
+      <div class="panel-title">
+        <div>
+          <h2 id="workspaceTitle">Namespace 总览</h2>
+          <span id="workspaceMeta" class="muted">点击卡片查看详情</span>
         </div>
-        <div id="namespaceTable" class="table-wrap"></div>
+        <button id="refreshButton" class="secondary compact-button">刷新</button>
       </div>
 
-      <div class="panel">
-        <h2>申请新类型</h2>
-        <form id="allocateForm">
-          <label>Namespace<select id="allocateNamespace" required></select></label>
-          <label>项目<input id="project" required placeholder="例如 XH2 / SLG"></label>
-          <label>常量名<input id="symbol" required placeholder="例如 CHAOS_REALM_RANK"></label>
-          <label>描述<textarea id="description" required placeholder="这个类型是做什么的"></textarea></label>
-          <label>需求/工单<input id="requirement" placeholder="例如 XH2-3124"></label>
-          <label>申请人<input id="requester" placeholder="姓名 / Git 用户"></label>
-          <button type="submit">申请</button>
+      <div id="namespaceTable" class="namespace-grid"></div>
+      <div id="searchResult" class="result-grid hidden"></div>
+    </section>
+
+    <aside class="side-column">
+      <section class="panel allocate-panel">
+        <div class="panel-title">
+          <h2>申请新类型</h2>
+          <span class="muted">自动分配下一可用值</span>
+        </div>
+
+        <form id="allocateForm" class="allocate-form">
+          <div class="form-row">
+            <label>Namespace
+              <select id="allocateNamespace" required></select>
+            </label>
+            <label>项目
+              <input id="project" required placeholder="XH2 / SLG">
+            </label>
+          </div>
+
+          <label>常量名
+            <input id="symbol" required placeholder="CHAOS_REALM_RANK">
+          </label>
+
+          <label>描述
+            <textarea id="description" required placeholder="这个类型是做什么的"></textarea>
+          </label>
+
+          <div class="form-row">
+            <label>需求/工单
+              <input id="requirement" placeholder="XH2-3124">
+            </label>
+            <label>申请人
+              <input id="requester" placeholder="姓名 / Git 用户">
+            </label>
+          </div>
+
+          <div class="submit-row">
+            <button type="submit">申请类型</button>
+            <pre id="allocateResult" class="result inline-result"></pre>
+          </div>
         </form>
-        <pre id="allocateResult" class="result"></pre>
-      </div>
-    </section>
+      </section>
 
-    <section class="panel">
-      <h2>Namespace 详情</h2>
-      <div id="namespaceDetail" class="muted">点击 Namespace 查看详情和预留区间。</div>
-    </section>
+      <section class="panel detail-panel">
+        <div class="panel-title">
+          <h2>Namespace 详情</h2>
+          <span class="muted">当前分配状态</span>
+        </div>
+        <div id="namespaceDetail" class="detail-empty">点击左侧 Namespace 查看详情。</div>
+      </section>
+    </aside>
   </main>
 
   <script src="/app.js"></script>
