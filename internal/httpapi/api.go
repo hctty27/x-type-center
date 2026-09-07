@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -21,13 +22,15 @@ import (
 type API struct {
 	registry         *service.Registry
 	skillPackagePath string
+	publicURL        string
 	logger           *slog.Logger
 }
 
-func New(registry *service.Registry, skillPackagePath string, logger *slog.Logger) *API {
+func New(registry *service.Registry, skillPackagePath, publicURL string, logger *slog.Logger) *API {
 	return &API{
 		registry:         registry,
 		skillPackagePath: strings.TrimSpace(skillPackagePath),
+		publicURL:        strings.TrimRight(strings.TrimSpace(publicURL), "/"),
 		logger:           logger,
 	}
 }
@@ -75,24 +78,19 @@ func (a *API) downloadSkillPackage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	file, err := os.Open(a.skillPackagePath)
+	baseURL, err := a.effectivePublicURL(r)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	packageData, modTime, err := buildSkillPackage(a.skillPackagePath, baseURL)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			writeError(w, http.StatusNotFound, "skill package is not available")
 			return
 		}
-		a.fail(w, fmt.Errorf("open skill package: %w", err))
-		return
-	}
-	defer file.Close()
-
-	info, err := file.Stat()
-	if err != nil {
-		a.fail(w, fmt.Errorf("stat skill package: %w", err))
-		return
-	}
-	if info.IsDir() {
-		writeError(w, http.StatusInternalServerError, "configured skill package path is a directory")
+		a.fail(w, err)
 		return
 	}
 
@@ -100,7 +98,8 @@ func (a *API) downloadSkillPackage(w http.ResponseWriter, r *http.Request) {
 	if disposition := mime.FormatMediaType("attachment", map[string]string{"filename": filename}); disposition != "" {
 		w.Header().Set("Content-Disposition", disposition)
 	}
-	http.ServeContent(w, r, filename, info.ModTime(), file)
+	w.Header().Set("Content-Type", "application/zip")
+	http.ServeContent(w, r, filename, modTime, bytes.NewReader(packageData))
 }
 
 func (a *API) searchTypes(w http.ResponseWriter, r *http.Request) {
