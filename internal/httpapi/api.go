@@ -50,6 +50,8 @@ func (a *API) Routes(static http.Handler) http.Handler {
 	mux.HandleFunc("HEAD /api/v1/skill-package", a.downloadSkillPackage)
 	mux.HandleFunc("POST /api/v1/types/allocate", a.allocateType)
 	mux.HandleFunc("POST /api/v1/types/allocate-batch", a.allocateTypes)
+	mux.HandleFunc("POST /api/v1/types/{id}/revoke", a.revokeType)
+	mux.HandleFunc("POST /api/v1/allocations/{allocationId}/revoke", a.revokeAllocation)
 	mux.HandleFunc("POST /api/v1/types/validate", a.validateType)
 	mux.Handle("/", static)
 	return a.withLogging(mux)
@@ -232,6 +234,48 @@ func (a *API) allocateTypes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusCreated, result)
+}
+
+func (a *API) revokeType(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil || id <= 0 {
+		writeError(w, http.StatusBadRequest, "invalid entry id")
+		return
+	}
+
+	var req model.RevokeRequest
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if req.Requester == "" {
+		req.Requester = strings.TrimSpace(r.Header.Get("X-Requester"))
+	}
+
+	entry, err := a.registry.RevokeEntry(r.Context(), id, req)
+	if err != nil {
+		a.fail(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, entry)
+}
+
+func (a *API) revokeAllocation(w http.ResponseWriter, r *http.Request) {
+	var req model.RevokeRequest
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if req.Requester == "" {
+		req.Requester = strings.TrimSpace(r.Header.Get("X-Requester"))
+	}
+
+	result, err := a.registry.RevokeAllocation(r.Context(), r.PathValue("allocationId"), req)
+	if err != nil {
+		a.fail(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
 }
 
 func (a *API) validateType(w http.ResponseWriter, r *http.Request) {
