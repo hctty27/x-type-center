@@ -482,11 +482,11 @@ func (s *MySQL) AllocateBatch(ctx context.Context, req model.AllocateRequest, co
 	}
 
 	if req.Project != "" {
-		if _, err := tx.ExecContext(ctx, `
-			INSERT IGNORE INTO projects(name)
-			VALUES (?)`, req.Project); err != nil {
-			return nil, fmt.Errorf("ensure project: %w", err)
+		project, err := ensureProject(ctx, tx, req.Project)
+		if err != nil {
+			return nil, err
 		}
+		req.Project = project
 	}
 
 	items := make([]model.TypeEntry, 0, count)
@@ -554,6 +554,24 @@ func (s *MySQL) AllocateBatch(ctx context.Context, req model.AllocateRequest, co
 		return nil, fmt.Errorf("commit allocation: %w", err)
 	}
 	return items, nil
+}
+
+func ensureProject(ctx context.Context, tx *sql.Tx, name string) (string, error) {
+	if _, err := tx.ExecContext(ctx, `
+		INSERT IGNORE INTO projects(name)
+		VALUES (?)`, name); err != nil {
+		return "", fmt.Errorf("ensure project: %w", err)
+	}
+
+	var canonicalName string
+	if err := tx.QueryRowContext(ctx, `
+		SELECT name
+		FROM projects
+		WHERE name = ?
+		LIMIT 1`, name).Scan(&canonicalName); err != nil {
+		return "", fmt.Errorf("read project: %w", err)
+	}
+	return canonicalName, nil
 }
 
 func lockNamespace(ctx context.Context, tx *sql.Tx, code string) (model.Namespace, error) {
