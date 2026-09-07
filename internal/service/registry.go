@@ -42,6 +42,54 @@ func (r *Registry) Search(ctx context.Context, params model.SearchParams) (model
 }
 
 func (r *Registry) Allocate(ctx context.Context, req model.AllocateRequest) (model.TypeEntry, error) {
+	normalized, err := normalizeAllocateRequest(req)
+	if err != nil {
+		return model.TypeEntry{}, err
+	}
+	return r.store.Allocate(ctx, normalized)
+}
+
+func (r *Registry) AllocateBatch(ctx context.Context, req model.AllocateBatchRequest) (model.AllocateBatchResult, error) {
+	count := req.Count
+	if count == 0 {
+		count = 1
+	}
+	if count < 1 || count > 100 {
+		return model.AllocateBatchResult{}, fmt.Errorf("invalid count: must be between 1 and 100")
+	}
+
+	normalized, err := normalizeAllocateRequest(model.AllocateRequest{
+		Namespace:   req.Namespace,
+		Project:     req.Project,
+		Symbol:      req.Symbol,
+		Description: req.Description,
+		Requirement: req.Requirement,
+		Requester:   req.Requester,
+	})
+	if err != nil {
+		return model.AllocateBatchResult{}, err
+	}
+	if count > 1 && normalized.Symbol != "" {
+		return model.AllocateBatchResult{}, fmt.Errorf("invalid symbol: batch allocation requires an empty symbol")
+	}
+
+	items, err := r.store.AllocateBatch(ctx, normalized, count)
+	if err != nil {
+		return model.AllocateBatchResult{}, err
+	}
+	values := make([]int64, 0, len(items))
+	for _, item := range items {
+		values = append(values, item.Value)
+	}
+	return model.AllocateBatchResult{
+		Namespace: normalized.Namespace,
+		Count:     len(items),
+		Values:    values,
+		Items:     items,
+	}, nil
+}
+
+func normalizeAllocateRequest(req model.AllocateRequest) (model.AllocateRequest, error) {
 	req.Namespace = strings.TrimSpace(req.Namespace)
 	req.Project = strings.TrimSpace(req.Project)
 	req.Symbol = strings.TrimSpace(req.Symbol)
@@ -50,12 +98,12 @@ func (r *Registry) Allocate(ctx context.Context, req model.AllocateRequest) (mod
 	req.Requester = strings.TrimSpace(req.Requester)
 
 	if req.Namespace == "" {
-		return model.TypeEntry{}, fmt.Errorf("namespace is required")
+		return model.AllocateRequest{}, fmt.Errorf("namespace is required")
 	}
 	if req.Symbol != "" && !symbolPattern.MatchString(req.Symbol) {
-		return model.TypeEntry{}, fmt.Errorf("symbol must match %s", symbolPattern.String())
+		return model.AllocateRequest{}, fmt.Errorf("symbol must match %s", symbolPattern.String())
 	}
-	return r.store.Allocate(ctx, req)
+	return req, nil
 }
 
 func (r *Registry) Validate(ctx context.Context, req model.ValidateRequest) (model.ValidationResult, error) {
