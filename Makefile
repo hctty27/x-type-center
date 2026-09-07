@@ -1,4 +1,4 @@
-.PHONY: run build build-linux cli test fmt import migrate docker-up docker-down
+.PHONY: run build build-linux cli skill-package test fmt import migrate docker-up docker-down
 
 VERSION ?= dev
 COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
@@ -19,6 +19,11 @@ build-linux:
 cli:
 	mkdir -p bin
 	CGO_ENABLED=0 go build -trimpath -o bin/type-registry ./cmd/type-registry
+
+skill-package:
+	mkdir -p dist
+	cd skills && zip -qr ../dist/type-registry-skill.zip type-registry
+	cd dist && sha256sum type-registry-skill.zip > type-registry-skill.zip.sha256
 
 test:
 	go test ./...
