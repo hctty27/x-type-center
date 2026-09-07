@@ -90,8 +90,19 @@
               <input id="allocateCount" type="number" min="1" max="100" step="1" value="1" inputmode="numeric">
             </label>
             <label class="field">
-              <span>项目 <em>可选</em></span>
-              <input id="project" placeholder="XH2 / SLG">
+              <span>项目 <em>可搜索，也可直接输入新项目</em></span>
+              <div id="projectCombo" class="combo">
+                <input
+                  id="project"
+                  role="combobox"
+                  aria-expanded="false"
+                  aria-autocomplete="list"
+                  aria-controls="projectOptions"
+                  autocomplete="off"
+                  maxlength="128"
+                  placeholder="搜索或输入项目">
+                <div id="projectOptions" class="combo-options" role="listbox" hidden></div>
+              </div>
             </label>
           </div>
 
