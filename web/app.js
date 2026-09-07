@@ -343,6 +343,66 @@ function renderEntryTable(items) {
   ].join('');
 }
 
+function renderAllocationLoading(count) {
+  $('allocateResult').className = 'allocation-feedback is-loading';
+  $('allocateResult').innerHTML = [
+    '<div class="feedback-card loading">',
+      '<div class="feedback-icon">…</div>',
+      '<div>',
+        '<strong>正在申请</strong>',
+        '<small>准备分配 ' + count + ' 个可用值</small>',
+      '</div>',
+    '</div>'
+  ].join('');
+}
+
+function renderAllocationSuccess(data) {
+  const values = Array.isArray(data.values) ? data.values : [];
+  const rangeText = values.length <= 1
+    ? String(values[0] ?? '-')
+    : values[0] + ' ~ ' + values[values.length - 1];
+
+  $('allocateResult').className = 'allocation-feedback is-success';
+  $('allocateResult').innerHTML = [
+    '<div class="feedback-card success">',
+      '<div class="feedback-head">',
+        '<div class="feedback-icon">✓</div>',
+        '<div>',
+          '<strong>申请成功</strong>',
+          '<small>' + esc(data.namespace) + ' · ' + esc(data.count) + ' 个</small>',
+        '</div>',
+      '</div>',
+      '<div class="feedback-range">',
+        '<span>分配结果</span>',
+        '<strong>' + esc(rangeText) + '</strong>',
+      '</div>',
+      '<div class="feedback-values">',
+        values.map((value) => '<code>' + esc(value) + '</code>').join(''),
+      '</div>',
+    '</div>'
+  ].join('');
+}
+
+function renderAllocationError(message) {
+  $('allocateResult').className = 'allocation-feedback is-error';
+  $('allocateResult').innerHTML = [
+    '<div class="feedback-card failure">',
+      '<div class="feedback-icon">!</div>',
+      '<div>',
+        '<strong>申请失败</strong>',
+        '<small>' + esc(message) + '</small>',
+      '</div>',
+    '</div>'
+  ].join('');
+}
+
+function syncBulkSymbolState() {
+  const count = Number($('allocateCount').value);
+  const bulk = Number.isInteger(count) && count > 1;
+  $('symbol').disabled = bulk;
+  $('symbolHint').textContent = bulk ? '批量时不使用' : '可选';
+}
+
 function showMainError(error) {
   $('workspaceMeta').textContent = '加载失败';
   $('namespaceTable').innerHTML = '<div class="error">' + esc(error.message) + '</div>';
@@ -352,37 +412,38 @@ $('allocateForm').addEventListener('submit', async (event) => {
   event.preventDefault();
 
   const namespace = $('allocateNamespace').value;
+  const count = Number($('allocateCount').value);
+
   if (!namespace) {
-    $('allocateResult').textContent = '请先从下拉列表选择 Namespace';
-    $('allocateResult').className = 'form-result error-text';
+    renderAllocationError('请先从下拉列表选择 Namespace');
+    return;
+  }
+  if (!Number.isInteger(count) || count < 1 || count > 100) {
+    renderAllocationError('申请数量必须是 1 到 100 的整数');
     return;
   }
 
-  $('allocateResult').textContent = '正在申请...';
-  $('allocateResult').className = 'form-result muted';
+  renderAllocationLoading(count);
 
   try {
-    const data = await api('/api/v1/types/allocate', {
+    const data = await api('/api/v1/types/allocate-batch', {
       method: 'POST',
       body: JSON.stringify({
         namespace,
+        count,
         project: $('project').value.trim(),
-        symbol: $('symbol').value.trim(),
+        symbol: count === 1 ? $('symbol').value.trim() : '',
         description: $('description').value.trim(),
         requirement: $('requirement').value.trim(),
         requester: $('requester').value.trim()
       })
     });
 
-    $('allocateResult').textContent = '申请成功 · ' + data.namespace + ' = ' + data.value
-      + (data.symbol ? ' · ' + data.symbol : '');
-    $('allocateResult').className = 'form-result success-text';
-
+    renderAllocationSuccess(data);
     state.selectedNamespace = data.namespace;
     await loadNamespaces();
   } catch (error) {
-    $('allocateResult').textContent = error.message;
-    $('allocateResult').className = 'form-result error-text';
+    renderAllocationError(error.message);
   }
 });
 
@@ -398,6 +459,9 @@ $('namespacePageSize').addEventListener('change', (event) => {
   state.namespacePage = 1;
   applyNamespaceFilter(false);
 });
+
+$('allocateCount').addEventListener('input', syncBulkSymbolState);
+syncBulkSymbolState();
 
 $('allocateNamespaceSearch').addEventListener('focus', () => {
   $('allocateNamespaceSearch').select();

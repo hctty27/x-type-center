@@ -85,32 +85,6 @@ button {
   font-size: 11px;
 }
 
-.top-search {
-  width: min(560px, 52vw);
-  height: 38px;
-  display: flex;
-  align-items: center;
-  border: 1px solid #dfe3e9;
-  border-radius: 9px;
-  background: #fafbfc;
-}
-
-.top-search:focus-within {
-  border-color: #9db6e5;
-  background: #fff;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, .07);
-}
-
-.top-search input {
-  flex: 1;
-  min-width: 0;
-  height: 100%;
-  padding: 0 12px;
-  border: 0;
-  outline: 0;
-  background: transparent;
-}
-
 .text-button {
   height: 28px;
   margin-right: 5px;
@@ -128,7 +102,7 @@ button {
 .dashboard {
   height: calc(100vh - 64px);
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 360px;
+  grid-template-columns: minmax(0, 1fr) 420px;
   gap: 12px;
   padding: 12px;
   overflow: hidden;
@@ -166,6 +140,44 @@ button {
 
 .panel-header.compact {
   min-height: 36px;
+}
+
+.panel-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.namespace-search {
+  width: min(430px, 42vw);
+  height: 32px;
+  display: flex;
+  align-items: center;
+  border: 1px solid #dfe3e9;
+  border-radius: 8px;
+  background: #fafbfc;
+}
+
+.namespace-search:focus-within {
+  border-color: #9db6e5;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, .06);
+}
+
+.namespace-search input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0 10px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.namespace-search input:focus {
+  box-shadow: none;
 }
 
 .panel-header h2 {
@@ -397,6 +409,10 @@ tbody tr:last-child td {
   gap: 9px;
 }
 
+.quantity-row {
+  grid-template-columns: 96px minmax(0, 1fr);
+}
+
 .field {
   min-width: 0;
   display: grid;
@@ -446,6 +462,16 @@ textarea:focus {
   border-color: #9db6e5;
   background: #fff;
   box-shadow: 0 0 0 3px rgba(59, 130, 246, .06);
+}
+
+input:disabled {
+  cursor: not-allowed;
+  background: #f2f4f7;
+  color: #9aa3b2;
+}
+
+#allocateCount {
+  font-variant-numeric: tabular-nums;
 }
 
 .combo {
@@ -533,12 +559,124 @@ textarea:focus {
   background: #111827;
 }
 
-.form-result {
-  min-height: 18px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.allocation-feedback {
+  min-height: 34px;
+  margin-top: 2px;
+}
+
+.feedback-placeholder {
+  display: block;
+  padding: 6px 2px;
+  color: #9aa3b2;
   font-size: 10px;
+}
+
+.feedback-card {
+  border: 1px solid #e4e7ec;
+  border-radius: 10px;
+  padding: 10px;
+  background: #fafbfc;
+}
+
+.feedback-card.loading,
+.feedback-card.failure {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.feedback-card.success {
+  border-color: #cfeadd;
+  background: #f6fcf8;
+}
+
+.feedback-card.failure {
+  border-color: #f0d2cf;
+  background: #fff8f7;
+}
+
+.feedback-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.feedback-icon {
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: #eef1f5;
+  color: #667085;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.feedback-card.success .feedback-icon {
+  background: #dff5e8;
+  color: #087443;
+}
+
+.feedback-card.failure .feedback-icon {
+  background: #fde9e7;
+  color: #b42318;
+}
+
+.feedback-card strong {
+  display: block;
+  color: #253044;
+  font-size: 11px;
+}
+
+.feedback-card small {
+  display: block;
+  margin-top: 2px;
+  color: #7f8999;
+  font-size: 9px;
+  line-height: 1.4;
+}
+
+.feedback-range {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 9px;
+  padding-top: 8px;
+  border-top: 1px solid #dcefe4;
+}
+
+.feedback-range span {
+  color: #7b8797;
+  font-size: 9px;
+}
+
+.feedback-range strong {
+  color: #087443;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.feedback-values {
+  max-height: 84px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 8px;
+  overflow: auto;
+  scrollbar-width: thin;
+}
+
+.feedback-values code {
+  padding: 3px 6px;
+  border: 1px solid #d7eadf;
+  border-radius: 6px;
+  background: #fff;
+  color: #17643f;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 9px;
 }
 
 .muted {

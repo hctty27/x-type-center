@@ -56,6 +56,23 @@ type AllocateRequest struct {
 	Requester   string `json:"requester"`
 }
 
+type AllocateBatchRequest struct {
+	Namespace   string `json:"namespace"`
+	Project     string `json:"project"`
+	Symbol      string `json:"symbol"`
+	Description string `json:"description"`
+	Requirement string `json:"requirement"`
+	Requester   string `json:"requester"`
+	Count       int    `json:"count"`
+}
+
+type AllocateBatchResult struct {
+	Namespace string      `json:"namespace"`
+	Count     int         `json:"count"`
+	Values    []int64     `json:"values"`
+	Items     []TypeEntry `json:"items"`
+}
+
 type ValidateRequest struct {
 	Namespace string `json:"namespace"`
 	Value     int64  `json:"value"`

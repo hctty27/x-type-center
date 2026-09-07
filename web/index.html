@@ -16,11 +16,6 @@
           <span>跨项目全局类型注册中心</span>
         </div>
       </div>
-
-      <div class="top-search">
-        <input id="searchInput" autocomplete="off" placeholder="搜索 Namespace、名称或描述">
-        <button id="clearSearchButton" class="text-button" type="button">清空</button>
-      </div>
     </header>
 
     <main class="dashboard">
@@ -30,7 +25,13 @@
             <h2>Namespace</h2>
             <p id="workspaceMeta">加载中...</p>
           </div>
-          <button id="refreshButton" class="secondary-button" type="button">刷新</button>
+          <div class="panel-header-actions">
+            <div class="namespace-search">
+              <input id="searchInput" autocomplete="off" placeholder="搜索 Namespace、名称或描述">
+              <button id="clearSearchButton" class="text-button" type="button">清空</button>
+            </div>
+            <button id="refreshButton" class="secondary-button" type="button">刷新</button>
+          </div>
         </div>
 
         <div id="namespaceTable" class="table-shell namespace-table-shell"></div>
@@ -74,16 +75,21 @@
             </div>
           </label>
 
-          <div class="form-row">
+          <div class="form-row quantity-row">
+            <label class="field">
+              <span>申请数量</span>
+              <input id="allocateCount" type="number" min="1" max="100" step="1" value="1" inputmode="numeric">
+            </label>
             <label class="field">
               <span>项目 <em>可选</em></span>
               <input id="project" placeholder="XH2 / SLG">
             </label>
-            <label class="field">
-              <span>常量名 <em>可选</em></span>
-              <input id="symbol" placeholder="CHAOS_REALM_RANK">
-            </label>
           </div>
+
+          <label class="field">
+            <span>常量名 <em id="symbolHint">可选</em></span>
+            <input id="symbol" placeholder="CHAOS_REALM_RANK">
+          </label>
 
           <label class="field">
             <span>描述 <em>可选</em></span>
@@ -101,8 +107,10 @@
             </label>
           </div>
 
-          <button type="submit" class="primary-button">申请下一可用值</button>
-          <div id="allocateResult" class="form-result muted">尚未申请</div>
+          <button type="submit" class="primary-button">申请可用值</button>
+          <div id="allocateResult" class="allocation-feedback is-idle">
+            <span class="feedback-placeholder">尚未申请</span>
+          </div>
         </form>
       </aside>
     </main>
