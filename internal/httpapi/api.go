@@ -6,7 +6,10 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"mime"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -16,12 +19,17 @@ import (
 )
 
 type API struct {
-	registry *service.Registry
-	logger   *slog.Logger
+	registry         *service.Registry
+	skillPackagePath string
+	logger           *slog.Logger
 }
 
-func New(registry *service.Registry, logger *slog.Logger) *API {
-	return &API{registry: registry, logger: logger}
+func New(registry *service.Registry, skillPackagePath string, logger *slog.Logger) *API {
+	return &API{
+		registry:         registry,
+		skillPackagePath: strings.TrimSpace(skillPackagePath),
+		logger:           logger,
+	}
 }
 
 func (a *API) Routes(static http.Handler) http.Handler {
@@ -30,6 +38,8 @@ func (a *API) Routes(static http.Handler) http.Handler {
 	mux.HandleFunc("GET /api/v1/namespaces", a.listNamespaces)
 	mux.HandleFunc("GET /api/v1/namespaces/{code}", a.getNamespace)
 	mux.HandleFunc("GET /api/v1/types/search", a.searchTypes)
+	mux.HandleFunc("GET /api/v1/skill-package", a.downloadSkillPackage)
+	mux.HandleFunc("HEAD /api/v1/skill-package", a.downloadSkillPackage)
 	mux.HandleFunc("POST /api/v1/types/allocate", a.allocateType)
 	mux.HandleFunc("POST /api/v1/types/allocate-batch", a.allocateTypes)
 	mux.HandleFunc("POST /api/v1/types/validate", a.validateType)
@@ -57,6 +67,40 @@ func (a *API) getNamespace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"namespace": ns, "reservedRanges": ranges})
+}
+
+func (a *API) downloadSkillPackage(w http.ResponseWriter, r *http.Request) {
+	if a.skillPackagePath == "" {
+		writeError(w, http.StatusNotFound, "skill package is not configured")
+		return
+	}
+
+	file, err := os.Open(a.skillPackagePath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			writeError(w, http.StatusNotFound, "skill package is not available")
+			return
+		}
+		a.fail(w, fmt.Errorf("open skill package: %w", err))
+		return
+	}
+	defer file.Close()
+
+	info, err := file.Stat()
+	if err != nil {
+		a.fail(w, fmt.Errorf("stat skill package: %w", err))
+		return
+	}
+	if info.IsDir() {
+		writeError(w, http.StatusInternalServerError, "configured skill package path is a directory")
+		return
+	}
+
+	filename := filepath.Base(a.skillPackagePath)
+	if disposition := mime.FormatMediaType("attachment", map[string]string{"filename": filename}); disposition != "" {
+		w.Header().Set("Content-Disposition", disposition)
+	}
+	http.ServeContent(w, r, filename, info.ModTime(), file)
 }
 
 func (a *API) searchTypes(w http.ResponseWriter, r *http.Request) {
