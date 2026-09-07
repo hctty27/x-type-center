@@ -34,7 +34,7 @@ func (r *Registry) GetNamespace(ctx context.Context, code string) (model.Namespa
 	return ns, ranges, err
 }
 
-func (r *Registry) Search(ctx context.Context, params model.SearchParams) ([]model.TypeEntry, error) {
+func (r *Registry) Search(ctx context.Context, params model.SearchParams) (model.SearchResult, error) {
 	params.Query = strings.TrimSpace(params.Query)
 	params.Namespace = strings.TrimSpace(params.Namespace)
 	params.Project = strings.TrimSpace(params.Project)
