@@ -77,7 +77,6 @@ func (a *API) listProjects(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"items": items})
 }
 
-
 func (a *API) resolveNamespace(w http.ResponseWriter, r *http.Request) {
 	result, err := a.registry.ResolveNamespace(r.Context(), r.URL.Query().Get("q"))
 	if err != nil {
