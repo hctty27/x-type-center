@@ -36,6 +36,8 @@ func main() {
 		err = c.get("/api/v1/namespaces")
 	case "status":
 		err = status(c, os.Args[2:])
+	case "resolve":
+		err = resolve(c, os.Args[2:])
 	case "search":
 		err = search(c, os.Args[2:])
 	case "allocate":
@@ -57,6 +59,15 @@ func status(c client, args []string) error {
 		return errors.New("usage: type-registry status <namespace>")
 	}
 	return c.get("/api/v1/namespaces/" + url.PathEscape(args[0]))
+}
+
+func resolve(c client, args []string) error {
+	if len(args) == 0 {
+		return errors.New("usage: type-registry resolve <namespace-or-alias>")
+	}
+	values := url.Values{}
+	values.Set("q", strings.Join(args, " "))
+	return c.get("/api/v1/namespaces/resolve?" + values.Encode())
 }
 
 func search(c client, args []string) error {
@@ -165,6 +176,7 @@ func usage() {
 	fmt.Fprintln(os.Stderr, `type-registry commands:
   namespaces
   status <namespace>
+  resolve <namespace-or-alias>
   search [--namespace N] [--project P] <keyword>
   allocate --namespace N [--project P] [--symbol SYMBOL] [--description TEXT] [--requirement REF] [--requester USER]
   validate --namespace N --value V [--symbol SYMBOL] [--project P]`)
