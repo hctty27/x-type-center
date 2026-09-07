@@ -24,6 +24,7 @@ jobs:
       - run: go vet ./...
       - run: node --check web/app.js
       - run: python3 -m py_compile skills/type-registry/scripts/type_registry.py
+      - run: make skill-package && unzip -l dist/type-registry-skill.zip | grep 'type-registry/SKILL.md'
       - run: go test ./...
       - run: go build -o /tmp/x-type-center ./cmd/x-type-center
       - run: go build -o /tmp/type-registry ./cmd/type-registry
