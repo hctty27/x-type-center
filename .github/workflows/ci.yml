@@ -20,7 +20,19 @@ jobs:
           cache: false
       - run: go mod download
       - run: go mod tidy && git diff --exit-code -- go.mod go.sum
-      - run: test -z "$(find ./cmd ./internal ./web -name '*.go' -print0 | xargs -0 gofmt -l)"
+      - name: Check gofmt
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t files < <(find ./cmd ./internal ./web -name '*.go' -print0 | xargs -0 gofmt -l)
+          if (( ${#files[@]} > 0 )); then
+            printf 'Unformatted Go files:\n'
+            printf '  %s\n' "${files[@]}"
+            for file in "${files[@]}"; do
+              gofmt -d "$file"
+            done
+            exit 1
+          fi
       - run: go vet ./...
       - run: node --check web/app.js
       - run: python3 -m py_compile skills/type-registry/scripts/type_registry.py
