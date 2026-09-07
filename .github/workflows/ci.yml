@@ -52,57 +52,16 @@ jobs:
           COMMIT="${GITHUB_SHA}"
           BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           PACKAGE="x-type-center-${VERSION}-linux-${ARCH}"
-          mkdir -p "dist/${PACKAGE}"
+          mkdir -p dist
 
           CGO_ENABLED=0 GOOS=linux GOARCH="${ARCH}" go build \
             -trimpath \
             -ldflags="-s -w -X main.version=${VERSION} -X main.commit=${COMMIT} -X main.buildTime=${BUILD_TIME}" \
-            -o "dist/${PACKAGE}/x-type-center" \
+            -o "dist/x-type-center" \
             ./cmd/x-type-center
 
-          cp deploy/systemd/x-type-center.service "dist/${PACKAGE}/"
-          cp deploy/systemd/x-type-center.env.example "dist/${PACKAGE}/"
-
-          cat > "dist/${PACKAGE}/INSTALL.md" <<'EOF'
-          # x-type-center deployment
-
-          1. Install the binary:
-
-             sudo install -m 0755 x-type-center /usr/local/bin/x-type-center
-
-          2. Create the service user:
-
-             sudo useradd --system --no-create-home --shell /usr/sbin/nologin x-type-center || true
-
-          3. Install configuration:
-
-             sudo mkdir -p /etc/x-type-center
-             sudo cp x-type-center.env.example /etc/x-type-center/x-type-center.env
-             sudo chmod 600 /etc/x-type-center/x-type-center.env
-
-          4. Edit /etc/x-type-center/x-type-center.env and configure the MySQL DSN.
-
-          5. Initialize the database:
-
-             sudo -u x-type-center /usr/local/bin/x-type-center migrate
-
-          6. Optional first Excel import:
-
-             sudo -u x-type-center /usr/local/bin/x-type-center import --file /path/to/types.xlsx
-
-          7. Install and start systemd service:
-
-             sudo cp x-type-center.service /etc/systemd/system/x-type-center.service
-             sudo systemctl daemon-reload
-             sudo systemctl enable --now x-type-center
-
-          8. Verify:
-
-             /usr/local/bin/x-type-center version
-             curl http://127.0.0.1:8080/healthz
-          EOF
-
-          tar -C dist -czf "dist/${PACKAGE}.tar.gz" "${PACKAGE}"
+          tar -C dist -czf "dist/${PACKAGE}.tar.gz" x-type-center
+          rm "dist/x-type-center"
           (cd dist && sha256sum "${PACKAGE}.tar.gz" > "${PACKAGE}.tar.gz.sha256")
 
       - uses: actions/upload-artifact@v4
