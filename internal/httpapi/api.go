@@ -61,18 +61,42 @@ func (a *API) getNamespace(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) searchTypes(w http.ResponseWriter, r *http.Request) {
-	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
-	items, err := a.registry.Search(r.Context(), model.SearchParams{
+	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+	if page <= 0 {
+		page = 1
+	}
+
+	pageSize, _ := strconv.Atoi(r.URL.Query().Get("pageSize"))
+	if pageSize <= 0 {
+		pageSize, _ = strconv.Atoi(r.URL.Query().Get("limit"))
+	}
+	if pageSize <= 0 || pageSize > 200 {
+		pageSize = 50
+	}
+
+	result, err := a.registry.Search(r.Context(), model.SearchParams{
 		Query:     r.URL.Query().Get("q"),
 		Namespace: r.URL.Query().Get("namespace"),
 		Project:   r.URL.Query().Get("project"),
-		Limit:     limit,
+		Limit:     pageSize,
+		Offset:    (page - 1) * pageSize,
 	})
 	if err != nil {
 		a.fail(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"items": items})
+
+	totalPages := 0
+	if result.Total > 0 {
+		totalPages = int((result.Total + int64(pageSize) - 1) / int64(pageSize))
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"items":      result.Items,
+		"total":      result.Total,
+		"page":       page,
+		"pageSize":   pageSize,
+		"totalPages": totalPages,
+	})
 }
 
 func (a *API) allocateType(w http.ResponseWriter, r *http.Request) {
