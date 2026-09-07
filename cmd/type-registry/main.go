@@ -166,6 +166,6 @@ func usage() {
   namespaces
   status <namespace>
   search [--namespace N] [--project P] <keyword>
-  allocate --namespace N --project P --symbol SYMBOL --description TEXT [--requirement REF]
+  allocate --namespace N [--project P] [--symbol SYMBOL] [--description TEXT] [--requirement REF] [--requester USER]
   validate --namespace N --value V [--symbol SYMBOL] [--project P]`)
 }
