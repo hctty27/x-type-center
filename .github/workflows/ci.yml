@@ -77,7 +77,7 @@ jobs:
              sudo cp x-type-center.env.example /etc/x-type-center/x-type-center.env
              sudo chmod 600 /etc/x-type-center/x-type-center.env
 
-          4. Edit /etc/x-type-center/x-type-center.env and configure MySQL DSN and API token.
+          4. Edit /etc/x-type-center/x-type-center.env and configure the MySQL DSN.
 
           5. Initialize the database:
 

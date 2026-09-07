@@ -10,7 +10,6 @@ import (
 type Config struct {
 	Addr              string
 	DSN               string
-	APIToken          string
 	ReadTimeout       time.Duration
 	WriteTimeout      time.Duration
 	IdleTimeout       time.Duration
@@ -24,7 +23,6 @@ func Load() (Config, error) {
 	cfg := Config{
 		Addr:              env("TYPE_REGISTRY_ADDR", ":8080"),
 		DSN:               env("TYPE_REGISTRY_DSN", "type_center:type_center@tcp(127.0.0.1:3306)/x_type_center?charset=utf8mb4&parseTime=true&loc=UTC"),
-		APIToken:          os.Getenv("TYPE_REGISTRY_TOKEN"),
 		ReadTimeout:       durationEnv("TYPE_REGISTRY_READ_TIMEOUT", 10*time.Second),
 		WriteTimeout:      durationEnv("TYPE_REGISTRY_WRITE_TIMEOUT", 15*time.Second),
 		IdleTimeout:       durationEnv("TYPE_REGISTRY_IDLE_TIMEOUT", 60*time.Second),
