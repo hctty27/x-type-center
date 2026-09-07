@@ -193,8 +193,8 @@ func (s *MySQL) SearchEntries(ctx context.Context, params model.SearchParams) ([
 	}
 	if params.Query != "" {
 		like := "%" + params.Query + "%"
-		where = append(where, `(e.symbol LIKE ? OR e.description LIKE ? OR e.project LIKE ? OR e.requirement_ref LIKE ? OR CAST(e.value AS CHAR) = ?)`)
-		args = append(args, like, like, like, like, params.Query)
+		where = append(where, `(n.code LIKE ? OR e.symbol LIKE ? OR e.description LIKE ? OR e.project LIKE ? OR e.requirement_ref LIKE ? OR CAST(e.value AS CHAR) = ?)`)
+		args = append(args, like, like, like, like, like, params.Query)
 	}
 	args = append(args, limit)
 
