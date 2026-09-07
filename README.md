@@ -365,7 +365,9 @@ TYPE_REGISTRY_PUBLIC_URL=https://x-type-center.internal
 }
 ```
 
-`TYPE_REGISTRY_PUBLIC_URL` 未配置时，服务端会回退到当前请求的协议和 Host。反向代理或 HTTPS 终止场景应显式配置 `TYPE_REGISTRY_PUBLIC_URL`，避免生成错误的 `http://` 地址。服务端不会自动信任 `X-Forwarded-*` 请求头。
+`TYPE_REGISTRY_PUBLIC_URL` 未配置时，服务端会回退到当前请求的协议和 Host。反向代理或 HTTPS 终止场景应显式配置 `TYPE_REGISTRY_PUBLIC_URL`，避免生成错误的 `http://` 地址。
+
+客户端 IP 审计默认只使用 TCP 连接的远端地址，不信任 `X-Forwarded-For`。如果服务部署在 Nginx / LB 后面，可配置例如 `TYPE_REGISTRY_TRUSTED_PROXIES=127.0.0.1/32`；只有直接连接来源命中可信代理列表时，服务端才会从完整 `X-Forwarded-For` 链右侧向左跳过可信代理并选择客户端地址。可信代理范围应尽量精确，不要为了方便配置过大的网段。
 
 未配置 Skill 路径、文件不存在或 ZIP 内缺少 `type-registry/config.json` 时，页面按钮会不可用或下载失败。
 
@@ -392,6 +394,7 @@ type-registry-skill.zip.sha256
 | `TYPE_REGISTRY_DSN` | 本地 MySQL DSN |
 | `TYPE_REGISTRY_SKILL_PACKAGE_PATH` | 空；Skill ZIP 模板本地绝对路径 |
 | `TYPE_REGISTRY_PUBLIC_URL` | 空；下载 Skill 时注入的服务地址 |
+| `TYPE_REGISTRY_TRUSTED_PROXIES` | 空；逗号分隔的可信反向代理 IP/CIDR，仅这些代理可提供可信 `X-Forwarded-For` |
 | `TYPE_REGISTRY_READ_TIMEOUT` | `10s` |
 | `TYPE_REGISTRY_WRITE_TIMEOUT` | `15s` |
 | `TYPE_REGISTRY_IDLE_TIMEOUT` | `60s` |
@@ -427,7 +430,7 @@ Namespace 的全局替代名称。别名全局唯一，用于把“商城类型�
 
 ### audit_logs
 
-记录 Registry 写操作，便于追查谁申请了什么值。
+记录 Registry 写操作，包含 action、Namespace、value、actor、client_ip 和 detail。服务端始终从连接信息解析客户端 IP；只有请求直接来自 `TYPE_REGISTRY_TRUSTED_PROXIES` 配置的可信代理时才读取 `X-Forwarded-For`，否则忽略该请求头。
 
 ## 服务端命令
 
