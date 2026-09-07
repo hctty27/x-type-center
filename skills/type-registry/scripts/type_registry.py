@@ -111,9 +111,9 @@ def build_parser():
 
     allocate = commands.add_parser("allocate")
     allocate.add_argument("--namespace", required=True)
-    allocate.add_argument("--project", required=True)
-    allocate.add_argument("--symbol", required=True)
-    allocate.add_argument("--description", required=True)
+    allocate.add_argument("--project", default="")
+    allocate.add_argument("--symbol", default="")
+    allocate.add_argument("--description", default="")
     allocate.add_argument("--requirement", default="")
     allocate.add_argument("--requester", default="")
     allocate.set_defaults(handler=command_allocate)
