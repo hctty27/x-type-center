@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"mime"
 	"net/http"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -23,14 +24,16 @@ type API struct {
 	registry         *service.Registry
 	skillPackagePath string
 	publicURL        string
+	trustedProxies   []netip.Prefix
 	logger           *slog.Logger
 }
 
-func New(registry *service.Registry, skillPackagePath, publicURL string, logger *slog.Logger) *API {
+func New(registry *service.Registry, skillPackagePath, publicURL string, trustedProxies []netip.Prefix, logger *slog.Logger) *API {
 	return &API{
 		registry:         registry,
 		skillPackagePath: strings.TrimSpace(skillPackagePath),
 		publicURL:        strings.TrimRight(strings.TrimSpace(publicURL), "/"),
+		trustedProxies:   trustedProxies,
 		logger:           logger,
 	}
 }
@@ -211,6 +214,7 @@ func (a *API) allocateType(w http.ResponseWriter, r *http.Request) {
 	if req.Requester == "" {
 		req.Requester = strings.TrimSpace(r.Header.Get("X-Requester"))
 	}
+	req.ClientIP = a.clientIP(r)
 	entry, err := a.registry.Allocate(r.Context(), req)
 	if err != nil {
 		a.fail(w, err)
@@ -228,6 +232,7 @@ func (a *API) allocateTypes(w http.ResponseWriter, r *http.Request) {
 	if req.Requester == "" {
 		req.Requester = strings.TrimSpace(r.Header.Get("X-Requester"))
 	}
+	req.ClientIP = a.clientIP(r)
 	result, err := a.registry.AllocateBatch(r.Context(), req)
 	if err != nil {
 		a.fail(w, err)
@@ -251,6 +256,7 @@ func (a *API) revokeType(w http.ResponseWriter, r *http.Request) {
 	if req.Requester == "" {
 		req.Requester = strings.TrimSpace(r.Header.Get("X-Requester"))
 	}
+	req.ClientIP = a.clientIP(r)
 
 	entry, err := a.registry.RevokeEntry(r.Context(), id, req)
 	if err != nil {
@@ -269,6 +275,7 @@ func (a *API) revokeAllocation(w http.ResponseWriter, r *http.Request) {
 	if req.Requester == "" {
 		req.Requester = strings.TrimSpace(r.Header.Get("X-Requester"))
 	}
+	req.ClientIP = a.clientIP(r)
 
 	result, err := a.registry.RevokeAllocation(r.Context(), r.PathValue("allocationId"), req)
 	if err != nil {
@@ -345,7 +352,7 @@ func writeError(w http.ResponseWriter, status int, message string) {
 
 func (a *API) withLogging(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		a.logger.Info("http request", "method", r.Method, "path", r.URL.Path)
+		a.logger.Info("http request", "method", r.Method, "path", r.URL.Path, "client_ip", a.clientIP(r))
 		next.ServeHTTP(w, r)
 	})
 }
