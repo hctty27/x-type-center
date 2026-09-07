@@ -2,7 +2,9 @@ package store
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
+	"encoding/hex"
 	"embed"
 	"errors"
 	"fmt"
@@ -107,9 +109,9 @@ func (s *MySQL) ListProjects(ctx context.Context) ([]model.Project, error) {
 func (s *MySQL) ListNamespaces(ctx context.Context) ([]model.Namespace, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT n.id, n.code, n.display_name, n.description, n.next_value, n.min_value, n.max_value, n.status,
-		       MAX(e.value) AS current_max, COUNT(e.id) AS used_count
+		       MAX(e.value) AS current_max, SUM(CASE WHEN e.status = 'ACTIVE' THEN 1 ELSE 0 END) AS used_count
 		FROM type_namespaces n
-		LEFT JOIN type_entries e ON e.namespace_id = n.id AND e.status = 'ACTIVE'
+		LEFT JOIN type_entries e ON e.namespace_id = n.id
 		GROUP BY n.id, n.code, n.display_name, n.description, n.next_value, n.min_value, n.max_value, n.status
 		ORDER BY n.code`)
 	if err != nil {
@@ -140,9 +142,9 @@ func (s *MySQL) ListNamespaces(ctx context.Context) ([]model.Namespace, error) {
 func (s *MySQL) GetNamespace(ctx context.Context, code string) (model.Namespace, error) {
 	row := s.db.QueryRowContext(ctx, `
 		SELECT n.id, n.code, n.display_name, n.description, n.next_value, n.min_value, n.max_value, n.status,
-		       MAX(e.value) AS current_max, COUNT(e.id) AS used_count
+		       MAX(e.value) AS current_max, SUM(CASE WHEN e.status = 'ACTIVE' THEN 1 ELSE 0 END) AS used_count
 		FROM type_namespaces n
-		LEFT JOIN type_entries e ON e.namespace_id = n.id AND e.status = 'ACTIVE'
+		LEFT JOIN type_entries e ON e.namespace_id = n.id
 		WHERE n.code = ?
 		GROUP BY n.id, n.code, n.display_name, n.description, n.next_value, n.min_value, n.max_value, n.status`, code)
 	ns, err := scanNamespaceSummary(row)
@@ -410,8 +412,13 @@ func (s *MySQL) SearchEntries(ctx context.Context, params model.SearchParams) (m
 	queryArgs = append(queryArgs, limit, offset)
 
 	query := `SELECT e.id, e.namespace_id, n.code, e.value, COALESCE(e.symbol, ''), e.project, e.description,
-	                 e.requirement_ref, e.requester, e.source, e.source_ref, e.status, e.created_at, e.updated_at
-	          FROM type_entries e JOIN type_namespaces n ON n.id = e.namespace_id
+	                 e.requirement_ref, e.requester, e.source, e.source_ref, e.status,
+	                 COALESCE(ae.allocation_id, ''), r.revoked_at, COALESCE(r.revoked_by, ''), COALESCE(r.reason, ''),
+	                 e.created_at, e.updated_at
+	          FROM type_entries e
+	          JOIN type_namespaces n ON n.id = e.namespace_id
+	          LEFT JOIN type_allocation_entries ae ON ae.entry_id = e.id
+	          LEFT JOIN type_entry_revocations r ON r.entry_id = e.id
 	          WHERE ` + whereSQL + `
 	          ORDER BY e.updated_at DESC, e.id DESC LIMIT ? OFFSET ?`
 	rows, err := s.db.QueryContext(ctx, query, queryArgs...)
@@ -437,8 +444,13 @@ func (s *MySQL) SearchEntries(ctx context.Context, params model.SearchParams) (m
 func (s *MySQL) GetEntry(ctx context.Context, namespace string, value int64) (model.TypeEntry, error) {
 	row := s.db.QueryRowContext(ctx, `
 		SELECT e.id, e.namespace_id, n.code, e.value, COALESCE(e.symbol, ''), e.project, e.description,
-		       e.requirement_ref, e.requester, e.source, e.source_ref, e.status, e.created_at, e.updated_at
-		FROM type_entries e JOIN type_namespaces n ON n.id = e.namespace_id
+		       e.requirement_ref, e.requester, e.source, e.source_ref, e.status,
+		       COALESCE(ae.allocation_id, ''), r.revoked_at, COALESCE(r.revoked_by, ''), COALESCE(r.reason, ''),
+		       e.created_at, e.updated_at
+		FROM type_entries e
+		JOIN type_namespaces n ON n.id = e.namespace_id
+		LEFT JOIN type_allocation_entries ae ON ae.entry_id = e.id
+		LEFT JOIN type_entry_revocations r ON r.entry_id = e.id
 		WHERE n.code = ? AND e.value = ?`, namespace, value)
 	entry, err := scanEntry(row)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -450,50 +462,93 @@ func (s *MySQL) GetEntry(ctx context.Context, namespace string, value int64) (mo
 	return entry, nil
 }
 
+func (s *MySQL) GetEntryByID(ctx context.Context, id int64) (model.TypeEntry, error) {
+	row := s.db.QueryRowContext(ctx, `
+		SELECT e.id, e.namespace_id, n.code, e.value, COALESCE(e.symbol, ''), e.project, e.description,
+		       e.requirement_ref, e.requester, e.source, e.source_ref, e.status,
+		       COALESCE(ae.allocation_id, ''), r.revoked_at, COALESCE(r.revoked_by, ''), COALESCE(r.reason, ''),
+		       e.created_at, e.updated_at
+		FROM type_entries e
+		JOIN type_namespaces n ON n.id = e.namespace_id
+		LEFT JOIN type_allocation_entries ae ON ae.entry_id = e.id
+		LEFT JOIN type_entry_revocations r ON r.entry_id = e.id
+		WHERE e.id = ?`, id)
+	entry, err := scanEntry(row)
+	if errors.Is(err, sql.ErrNoRows) {
+		return model.TypeEntry{}, ErrNotFound
+	}
+	if err != nil {
+		return model.TypeEntry{}, fmt.Errorf("get entry by id: %w", err)
+	}
+	return entry, nil
+}
+
 func scanEntry(row scanner) (model.TypeEntry, error) {
 	var e model.TypeEntry
-	err := row.Scan(&e.ID, &e.NamespaceID, &e.Namespace, &e.Value, &e.Symbol, &e.Project, &e.Description,
-		&e.Requirement, &e.Requester, &e.Source, &e.SourceRef, &e.Status, &e.CreatedAt, &e.UpdatedAt)
-	return e, err
+	var revokedAt sql.NullTime
+	err := row.Scan(
+		&e.ID, &e.NamespaceID, &e.Namespace, &e.Value, &e.Symbol, &e.Project, &e.Description,
+		&e.Requirement, &e.Requester, &e.Source, &e.SourceRef, &e.Status, &e.AllocationID,
+		&revokedAt, &e.RevokedBy, &e.RevokeReason, &e.CreatedAt, &e.UpdatedAt,
+	)
+	if err != nil {
+		return model.TypeEntry{}, err
+	}
+	if revokedAt.Valid {
+		value := revokedAt.Time
+		e.RevokedAt = &value
+	}
+	return e, nil
 }
 
 func (s *MySQL) Allocate(ctx context.Context, req model.AllocateRequest) (model.TypeEntry, error) {
-	items, err := s.AllocateBatch(ctx, req, 1)
+	_, items, err := s.AllocateBatch(ctx, req, 1)
 	if err != nil {
 		return model.TypeEntry{}, err
 	}
 	return items[0], nil
 }
 
-func (s *MySQL) AllocateBatch(ctx context.Context, req model.AllocateRequest, count int) ([]model.TypeEntry, error) {
+func (s *MySQL) AllocateBatch(ctx context.Context, req model.AllocateRequest, count int) (string, []model.TypeEntry, error) {
 	if count <= 0 {
-		return nil, fmt.Errorf("allocation count must be positive")
+		return "", nil, fmt.Errorf("allocation count must be positive")
+	}
+
+	allocationID, err := newAllocationID()
+	if err != nil {
+		return "", nil, err
 	}
 
 	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
 	if err != nil {
-		return nil, fmt.Errorf("begin allocation tx: %w", err)
+		return "", nil, fmt.Errorf("begin allocation tx: %w", err)
 	}
 	defer tx.Rollback()
 
 	ns, err := lockNamespace(ctx, tx, req.Namespace)
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
 
 	if req.Project != "" {
 		project, err := ensureProject(ctx, tx, req.Project)
 		if err != nil {
-			return nil, err
+			return "", nil, err
 		}
 		req.Project = project
+	}
+
+	if _, err := tx.ExecContext(ctx, `
+		INSERT INTO type_allocations(allocation_id, namespace_id, project, requester)
+		VALUES (?, ?, ?, ?)`, allocationID, ns.ID, req.Project, req.Requester); err != nil {
+		return "", nil, fmt.Errorf("create allocation: %w", err)
 	}
 
 	items := make([]model.TypeEntry, 0, count)
 	for i := 0; i < count; i++ {
 		candidate, fromReserved, err := chooseCandidate(ctx, tx, ns, req.Project)
 		if err != nil {
-			return nil, err
+			return "", nil, err
 		}
 
 		result, err := tx.ExecContext(ctx, `
@@ -502,56 +557,248 @@ func (s *MySQL) AllocateBatch(ctx context.Context, req model.AllocateRequest, co
 			ns.ID, candidate, req.Symbol, req.Project, req.Description, req.Requirement, req.Requester)
 		if err != nil {
 			if isDuplicateKey(err) {
-				return nil, fmt.Errorf("%w: value or symbol already registered", ErrConflict)
+				return "", nil, fmt.Errorf("%w: value or symbol already registered", ErrConflict)
 			}
-			return nil, fmt.Errorf("insert allocated type: %w", err)
+			return "", nil, fmt.Errorf("insert allocated type: %w", err)
 		}
 		entryID, err := result.LastInsertId()
 		if err != nil {
-			return nil, fmt.Errorf("read allocated id: %w", err)
+			return "", nil, fmt.Errorf("read allocated id: %w", err)
+		}
+
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO type_allocation_entries(allocation_id, entry_id)
+			VALUES (?, ?)`, allocationID, entryID); err != nil {
+			return "", nil, fmt.Errorf("link allocated type: %w", err)
 		}
 
 		if !fromReserved || candidate >= ns.NextValue {
 			next, err := nextGlobalCandidate(ctx, tx, ns, candidate+1)
 			if err != nil && !errors.Is(err, ErrNamespaceExhausted) {
-				return nil, err
+				return "", nil, err
 			}
 			if errors.Is(err, ErrNamespaceExhausted) {
 				next = candidate + 1
 			}
 			if _, err := tx.ExecContext(ctx, `UPDATE type_namespaces SET next_value = ? WHERE id = ?`, next, ns.ID); err != nil {
-				return nil, fmt.Errorf("update namespace cursor: %w", err)
+				return "", nil, fmt.Errorf("update namespace cursor: %w", err)
 			}
 			ns.NextValue = next
 		}
 
 		if _, err := tx.ExecContext(ctx, `
 			INSERT INTO audit_logs(action, namespace_code, entry_value, actor, detail)
-			VALUES ('ALLOCATE', ?, ?, ?, JSON_OBJECT('project', ?, 'symbol', ?, 'description', ?))`,
-			req.Namespace, candidate, req.Requester, req.Project, req.Symbol, req.Description); err != nil {
-			return nil, fmt.Errorf("write audit log: %w", err)
+			VALUES ('ALLOCATE', ?, ?, ?, JSON_OBJECT(
+				'allocationId', ?, 'project', ?, 'symbol', ?, 'description', ?
+			))`,
+			req.Namespace, candidate, req.Requester, allocationID, req.Project, req.Symbol, req.Description); err != nil {
+			return "", nil, fmt.Errorf("write audit log: %w", err)
 		}
 
 		now := time.Now().UTC()
 		items = append(items, model.TypeEntry{
-			ID:          entryID,
-			NamespaceID: ns.ID,
-			Namespace:   ns.Code,
-			Value:       candidate,
-			Symbol:      req.Symbol,
-			Project:     req.Project,
-			Description: req.Description,
-			Requirement: req.Requirement,
-			Requester:   req.Requester,
-			Source:      "registry",
-			Status:      model.StatusActive,
-			CreatedAt:   now,
-			UpdatedAt:   now,
+			ID:           entryID,
+			NamespaceID:  ns.ID,
+			Namespace:    ns.Code,
+			Value:        candidate,
+			Symbol:       req.Symbol,
+			Project:      req.Project,
+			Description:  req.Description,
+			Requirement:  req.Requirement,
+			Requester:    req.Requester,
+			Source:       "registry",
+			Status:       model.StatusActive,
+			AllocationID: allocationID,
+			CreatedAt:    now,
+			UpdatedAt:    now,
 		})
 	}
 
 	if err := tx.Commit(); err != nil {
-		return nil, fmt.Errorf("commit allocation: %w", err)
+		return "", nil, fmt.Errorf("commit allocation: %w", err)
+	}
+	return allocationID, items, nil
+}
+
+func newAllocationID() (string, error) {
+	var data [16]byte
+	if _, err := rand.Read(data[:]); err != nil {
+		return "", fmt.Errorf("generate allocation id: %w", err)
+	}
+	return "alloc_" + hex.EncodeToString(data[:]), nil
+}
+
+func (s *MySQL) RevokeEntry(ctx context.Context, id int64, requester, reason string) (model.TypeEntry, error) {
+	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
+	if err != nil {
+		return model.TypeEntry{}, fmt.Errorf("begin revoke tx: %w", err)
+	}
+	defer tx.Rollback()
+
+	var status, namespace string
+	var value int64
+	err = tx.QueryRowContext(ctx, `
+		SELECT e.status, n.code, e.value
+		FROM type_entries e
+		JOIN type_namespaces n ON n.id = e.namespace_id
+		WHERE e.id = ?
+		FOR UPDATE`, id).Scan(&status, &namespace, &value)
+	if errors.Is(err, sql.ErrNoRows) {
+		return model.TypeEntry{}, ErrNotFound
+	}
+	if err != nil {
+		return model.TypeEntry{}, fmt.Errorf("lock entry for revoke: %w", err)
+	}
+
+	if status == model.StatusRevoked {
+		if err := tx.Commit(); err != nil {
+			return model.TypeEntry{}, fmt.Errorf("commit revoke lookup: %w", err)
+		}
+		return s.GetEntryByID(ctx, id)
+	}
+	if status != model.StatusActive {
+		return model.TypeEntry{}, fmt.Errorf("%w: only ACTIVE entries can be revoked", ErrConflict)
+	}
+
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE type_entries
+		SET status = 'REVOKED'
+		WHERE id = ?`, id); err != nil {
+		return model.TypeEntry{}, fmt.Errorf("revoke entry: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `
+		INSERT INTO type_entry_revocations(entry_id, revoked_by, reason)
+		VALUES (?, ?, ?)`, id, requester, reason); err != nil {
+		return model.TypeEntry{}, fmt.Errorf("record entry revocation: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `
+		INSERT INTO audit_logs(action, namespace_code, entry_value, actor, detail)
+		VALUES ('REVOKE', ?, ?, ?, JSON_OBJECT('reason', ?))`,
+		namespace, value, requester, reason); err != nil {
+		return model.TypeEntry{}, fmt.Errorf("write revoke audit log: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return model.TypeEntry{}, fmt.Errorf("commit revoke: %w", err)
+	}
+	return s.GetEntryByID(ctx, id)
+}
+
+func (s *MySQL) RevokeAllocation(ctx context.Context, allocationID, requester, reason string) ([]model.TypeEntry, error) {
+	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
+	if err != nil {
+		return nil, fmt.Errorf("begin allocation revoke tx: %w", err)
+	}
+	defer tx.Rollback()
+
+	var lockedID string
+	err = tx.QueryRowContext(ctx, `
+		SELECT allocation_id
+		FROM type_allocations
+		WHERE allocation_id = ?
+		FOR UPDATE`, allocationID).Scan(&lockedID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("lock allocation for revoke: %w", err)
+	}
+
+	type revokeItem struct {
+		id        int64
+		status    string
+		namespace string
+		value     int64
+	}
+	rows, err := tx.QueryContext(ctx, `
+		SELECT e.id, e.status, n.code, e.value
+		FROM type_allocation_entries ae
+		JOIN type_entries e ON e.id = ae.entry_id
+		JOIN type_namespaces n ON n.id = e.namespace_id
+		WHERE ae.allocation_id = ?
+		ORDER BY e.id
+		FOR UPDATE`, allocationID)
+	if err != nil {
+		return nil, fmt.Errorf("list allocation entries for revoke: %w", err)
+	}
+
+	var targets []revokeItem
+	for rows.Next() {
+		var item revokeItem
+		if err := rows.Scan(&item.id, &item.status, &item.namespace, &item.value); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		if item.status != model.StatusActive && item.status != model.StatusRevoked {
+			rows.Close()
+			return nil, fmt.Errorf("%w: allocation contains a non-revocable entry", ErrConflict)
+		}
+		targets = append(targets, item)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return nil, err
+	}
+	if err := rows.Close(); err != nil {
+		return nil, fmt.Errorf("close allocation revoke rows: %w", err)
+	}
+
+	for _, item := range targets {
+		if item.status == model.StatusRevoked {
+			continue
+		}
+		if _, err := tx.ExecContext(ctx, `
+			UPDATE type_entries
+			SET status = 'REVOKED'
+			WHERE id = ?`, item.id); err != nil {
+			return nil, fmt.Errorf("revoke allocation entry: %w", err)
+		}
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO type_entry_revocations(entry_id, revoked_by, reason)
+			VALUES (?, ?, ?)`, item.id, requester, reason); err != nil {
+			return nil, fmt.Errorf("record allocation revocation: %w", err)
+		}
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO audit_logs(action, namespace_code, entry_value, actor, detail)
+			VALUES ('REVOKE', ?, ?, ?, JSON_OBJECT('allocationId', ?, 'reason', ?))`,
+			item.namespace, item.value, requester, allocationID, reason); err != nil {
+			return nil, fmt.Errorf("write allocation revoke audit log: %w", err)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("commit allocation revoke: %w", err)
+	}
+	return s.ListAllocationEntries(ctx, allocationID)
+}
+
+func (s *MySQL) ListAllocationEntries(ctx context.Context, allocationID string) ([]model.TypeEntry, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT e.id, e.namespace_id, n.code, e.value, COALESCE(e.symbol, ''), e.project, e.description,
+		       e.requirement_ref, e.requester, e.source, e.source_ref, e.status,
+		       ae.allocation_id, r.revoked_at, COALESCE(r.revoked_by, ''), COALESCE(r.reason, ''),
+		       e.created_at, e.updated_at
+		FROM type_allocation_entries ae
+		JOIN type_entries e ON e.id = ae.entry_id
+		JOIN type_namespaces n ON n.id = e.namespace_id
+		LEFT JOIN type_entry_revocations r ON r.entry_id = e.id
+		WHERE ae.allocation_id = ?
+		ORDER BY e.id`, allocationID)
+	if err != nil {
+		return nil, fmt.Errorf("list allocation entries: %w", err)
+	}
+	defer rows.Close()
+
+	var items []model.TypeEntry
+	for rows.Next() {
+		entry, err := scanEntry(rows)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, entry)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 	return items, nil
 }
@@ -624,7 +871,7 @@ func chooseCandidate(ctx context.Context, tx *sql.Tx, ns model.Namespace, projec
 func firstFreeInRange(ctx context.Context, tx *sql.Tx, namespaceID, start, end int64) (int64, bool, error) {
 	rows, err := tx.QueryContext(ctx, `
 		SELECT value FROM type_entries
-		WHERE namespace_id = ? AND value BETWEEN ? AND ? AND status = 'ACTIVE'
+		WHERE namespace_id = ? AND value BETWEEN ? AND ?
 		ORDER BY value`, namespaceID, start, end)
 	if err != nil {
 		return 0, false, fmt.Errorf("query reserved range usage: %w", err)
