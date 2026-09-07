@@ -57,6 +57,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     namespace_code VARCHAR(128) NOT NULL DEFAULT '',
     entry_value BIGINT NULL,
     actor VARCHAR(128) NOT NULL DEFAULT '',
+    client_ip VARCHAR(45) NOT NULL DEFAULT '',
     detail JSON NULL,
     created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     PRIMARY KEY (id),
