@@ -1,0 +1,20 @@
+[Unit]
+Description=X Type Center
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=x-type-center
+Group=x-type-center
+EnvironmentFile=/etc/x-type-center/x-type-center.env
+ExecStart=/usr/local/bin/x-type-center server
+Restart=on-failure
+RestartSec=3s
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+
+[Install]
+WantedBy=multi-user.target

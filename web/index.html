@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>X Type Center</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <h1>X Type Center</h1>
+      <p>跨项目全局类型注册中心</p>
+    </div>
+    <button id="tokenButton" class="secondary">设置 API Token</button>
+  </header>
+
+  <main>
+    <section class="panel search-panel">
+      <div class="search-row">
+        <input id="searchInput" placeholder="搜索类型值、常量名、描述、项目，例如：混沌灵域 / RankType / 447">
+        <select id="namespaceFilter"><option value="">全部 Namespace</option></select>
+        <button id="searchButton">搜索</button>
+      </div>
+      <div id="searchResult" class="table-wrap"></div>
+    </section>
+
+    <section class="grid">
+      <div class="panel">
+        <div class="panel-title">
+          <h2>Namespaces</h2>
+          <button id="refreshButton" class="secondary">刷新</button>
+        </div>
+        <div id="namespaceTable" class="table-wrap"></div>
+      </div>
+
+      <div class="panel">
+        <h2>申请新类型</h2>
+        <form id="allocateForm">
+          <label>Namespace<select id="allocateNamespace" required></select></label>
+          <label>项目<input id="project" required placeholder="例如 XH2 / SLG"></label>
+          <label>常量名<input id="symbol" required placeholder="例如 CHAOS_REALM_RANK"></label>
+          <label>描述<textarea id="description" required placeholder="这个类型是做什么的"></textarea></label>
+          <label>需求/工单<input id="requirement" placeholder="例如 XH2-3124"></label>
+          <label>申请人<input id="requester" placeholder="姓名 / Git 用户"></label>
+          <button type="submit">申请</button>
+        </form>
+        <pre id="allocateResult" class="result"></pre>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Namespace 详情</h2>
+      <div id="namespaceDetail" class="muted">点击 Namespace 查看详情和预留区间。</div>
+    </section>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>

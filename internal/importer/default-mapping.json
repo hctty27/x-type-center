@@ -1,0 +1,89 @@
+{
+  "sheets": [
+    {
+      "name": "前后端交互",
+      "columns": [
+        {"namespace":"PermissionType","header":"开关PermissionType","displayName":"开关类型","descriptionHeader":"开关描述"},
+        {"namespace":"ActivityType","header":"活动类型ActivityType","displayName":"活动类型","descriptionHeader":"活动描述"},
+        {"namespace":"GameServerCode","header":"GameServerCode"},
+        {"namespace":"ClientResCode","header":"ClientResCode"},
+        {"namespace":"LuckCons","header":"抽卡类型\nLuckCons","displayName":"抽卡类型"},
+        {"namespace":"WarTokenType","header":"战令类型常量\nWarTokenType","displayName":"战令类型"},
+        {"namespace":"SceneType","header":"场景类型\nSceneType","displayName":"场景类型"},
+        {"namespace":"ItemSonType","header":"物品子类型\nItemSonType","displayName":"物品子类型"},
+        {"namespace":"TaskType","header":"任务类型\nTaskType","displayName":"任务类型"},
+        {"namespace":"PrivilegeCondicType","header":"特权条件类型\nPrivilegeCondicType","displayName":"特权条件类型"},
+        {"namespace":"PrivilegeMasterType","header":"特权主类型 \nPrivilegeMasterType","displayName":"特权主类型"}
+      ]
+    },
+    {
+      "name": "前后端交互2",
+      "columns": [
+        {"namespace":"UpgradeMasType","header":"养成大类型\nUpgradeMasType","displayName":"养成大类型"},
+        {"namespace":"XConditionType","header":"任务条件\nXConditionType","displayName":"任务条件"},
+        {"namespace":"RankType","header":"排行榜\nRankType","displayName":"排行榜"},
+        {"namespace":"PlotDialogueScriptType","header":"对话类型\nPlotDialogueScriptType","displayName":"对话类型"},
+        {"namespace":"InduCons","header":"礼包主类型\nInduCons","displayName":"礼包主类型"},
+        {"namespace":"DropType","header":"掉落类型\nDropType","displayName":"掉落类型"},
+        {"namespace":"BagType","header":"背包类型类型\nBagType","displayName":"背包类型"},
+        {"namespace":"RobotType","header":"机器人类型\nRobotType","displayName":"机器人类型"},
+        {"namespace":"TimeControlMasType","header":"时间流控制主类型\nTimeControlMasType","displayName":"时间流控制主类型"},
+        {"namespace":"BossDropType","header":"Boss掉落触发类型\nBossDropType","displayName":"Boss掉落触发类型"},
+        {"namespace":"Buff效果类型","header":"Buff效果类型"},
+        {"namespace":"Buff条件类型","header":"Buff条件类型"},
+        {"namespace":"Buff周期类型","header":"Buff周期类型"},
+        {"namespace":"AlbumType","header":"图鉴类型\nAlbumType","displayName":"图鉴类型"}
+      ]
+    },
+    {
+      "name": "功能常量",
+      "columns": [
+        {"namespace":"RpcCode","header":" RpcCode"},
+        {"namespace":"ItemAddType","header":"ItemAddType"},
+        {"namespace":"ItemRemoveType","header":"ItemRemoveType"},
+        {"namespace":"GSPlayerCmdOp","header":"GSPlayerCmdOp"},
+        {"namespace":"PrivilegeAttrCalcEnum","header":"PrivilegeAttrCalcEnum\n特权属性类型\n（CalcType_0）1000以下","displayName":"特权属性类型 CalcType_0"},
+        {"namespace":"PrivilegeAttrCalcEnum","header":"PrivilegeAttrCalcEnum\n特权属性类型\n（CalcType_1）1000+","displayName":"特权属性类型 CalcType_1"},
+        {"namespace":"PrivilegeAttrCalcEnum","header":"PrivilegeAttrCalcEnum\n特权属性类型\n（CalcType_2）2000+","displayName":"特权属性类型 CalcType_2"},
+        {"namespace":"PrivilegeAttrCalcEnum","header":"PrivilegeAttrCalcEnum\n特权属性类型\n（CalcType_3）3000+","displayName":"特权属性类型 CalcType_3"},
+        {"namespace":"ShopType","header":"商店类型\nShopType","displayName":"商店类型"},
+        {"namespace":"MiniGameBattleType","header":"MiniGameBattleType"},
+        {"namespace":"ActEventType","header":"ActEventType"},
+        {"namespace":"ActOpenCondition","header":"ActOpenCondition"},
+        {"namespace":"InduStrategyType","header":"InduStrategyType"},
+        {"namespace":"ItemOp","header":"ItemOp"},
+        {"namespace":"PlayEventNodeType","header":"事件节点类型\nPlayEventNodeType","displayName":"事件节点类型"},
+        {"namespace":"PlayEventLogicType","header":"事件节点类型\nPlayEventLogicType","displayName":"事件节点逻辑类型"},
+        {"namespace":"PlayEventConditionType","header":"事件节点类型\nPlayEventConditionType","displayName":"事件节点条件类型"},
+        {"namespace":"ExtraLogType","header":"日志类型\nExtraLogType","displayName":"日志类型"},
+        {"namespace":"ToAddCountType","header":"ToAddCountType"},
+        {"namespace":"chatType","header":"chatType"},
+        {"namespace":"ItemUse","header":"ItemUse"},
+        {"namespace":"PlayerActionType","header":"PlayerActionType"},
+        {"namespace":"BattleAtkType","header":"BattleAtkType"}
+      ]
+    },
+    {
+      "name": "其它服请求Code",
+      "columns": [
+        {"namespace":"BattleServerCode","header":"BattleServerCode"},
+        {"namespace":"CrossServerCode","header":"CrossServerCode"},
+        {"namespace":"BigCrossServerCode","header":"BigCrossServerCode"},
+        {"namespace":"RelationServerCode","header":"RelationServerCode"},
+        {"namespace":"CentercrossCode","header":"CentercrossCode"},
+        {"namespace":"FightCode","header":"FightCode"}
+      ]
+    },
+    {
+      "name": "SLGCode",
+      "fixedProject": "SLG",
+      "columns": [
+        {"namespace":"ItemAddType","header":"ItemAddType"},
+        {"namespace":"ItemRemoveType","header":"ItemRemoveType"},
+        {"namespace":"SLGCode","header":"SLGCode"},
+        {"namespace":"ClientRequestCode","header":"ClientRequestCode"},
+        {"namespace":"ClientResCode","header":"ClientResCode"}
+      ]
+    }
+  ]
+}
