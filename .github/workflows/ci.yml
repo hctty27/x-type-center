@@ -15,7 +15,7 @@ jobs:
           go-version: '1.27.1'
           cache: false
       - run: go mod download
-      - run: gofmt -w ./cmd ./internal ./web && git diff --exit-code
+      - run: test -z "$(find ./cmd ./internal ./web -name '*.go' -print0 | xargs -0 gofmt -l)"
       - run: go vet ./...
       - run: go test ./...
       - run: go build ./cmd/server ./cmd/type-registry ./cmd/import-xlsx
