@@ -545,9 +545,20 @@ $('namespacePageSize').addEventListener('change', (event) => {
 $('allocateCount').addEventListener('input', syncBulkSymbolState);
 syncBulkSymbolState();
 
-$('allocateNamespaceSearch').addEventListener('focus', () => {
-  $('allocateNamespaceSearch').select();
-  openCombo();
+const namespaceSearch = $('allocateNamespaceSearch');
+
+namespaceSearch.addEventListener('focus', () => {
+  namespaceSearch.select();
+
+  if ($('namespaceOptions').hidden) {
+    openCombo();
+  }
+});
+
+namespaceSearch.addEventListener('click', () => {
+  if ($('namespaceOptions').hidden) {
+    openCombo();
+  }
 });
 
 $('allocateNamespaceSearch').addEventListener('input', () => {
