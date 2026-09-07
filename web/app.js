@@ -1,9 +1,9 @@
 const state = {
   namespaces: [],
+  filtered: [],
   page: 1,
   pageSize: 10,
-  total: 0,
-  totalPages: 0
+  selectedNamespace: ''
 };
 
 const $ = (id) => document.getElementById(id);
@@ -28,96 +28,120 @@ function esc(value) {
   })[ch]);
 }
 
-async function loadNamespaces() {
-  const data = await api('/api/v1/namespaces');
-  state.namespaces = data.items || [];
-  fillNamespaceSelects();
+function valueOrDash(value) {
+  return value === null || value === undefined || value === '' ? '-' : value;
 }
 
-function fillNamespaceSelects() {
-  const currentAllocate = $('allocateNamespace').value;
-  const currentFilter = $('namespaceFilter').value;
-  const options = state.namespaces
+function formatRange(ns) {
+  if (ns.minValue == null && ns.maxValue == null) return '不限';
+  return valueOrDash(ns.minValue) + ' ~ ' + (ns.maxValue == null ? '∞' : ns.maxValue);
+}
+
+async function loadNamespaces() {
+  $('workspaceMeta').textContent = '加载中...';
+  const data = await api('/api/v1/namespaces');
+  state.namespaces = data.items || [];
+
+  if (!state.selectedNamespace || !state.namespaces.some((ns) => ns.code === state.selectedNamespace)) {
+    state.selectedNamespace = state.namespaces[0]?.code || '';
+  }
+
+  fillAllocateSelect();
+  renderSummary();
+  applyFilter(false);
+
+  if (state.selectedNamespace) {
+    await showNamespace(state.selectedNamespace, false);
+  } else {
+    $('namespaceDetail').innerHTML = '<div class="detail-empty">暂无 Namespace。</div>';
+  }
+}
+
+function fillAllocateSelect() {
+  const current = state.selectedNamespace || $('allocateNamespace').value;
+  $('allocateNamespace').innerHTML = state.namespaces
     .map((ns) => '<option value="' + esc(ns.code) + '">' + esc(ns.code) + '</option>')
     .join('');
 
-  $('allocateNamespace').innerHTML = options;
-  $('namespaceFilter').innerHTML = '<option value="">全部 Namespace</option>' + options;
-
-  if (state.namespaces.some((ns) => ns.code === currentAllocate)) {
-    $('allocateNamespace').value = currentAllocate;
-  }
-  if (state.namespaces.some((ns) => ns.code === currentFilter)) {
-    $('namespaceFilter').value = currentFilter;
+  if (current && state.namespaces.some((ns) => ns.code === current)) {
+    $('allocateNamespace').value = current;
   }
 }
 
-async function loadTypes(page = 1) {
-  const params = new URLSearchParams();
-  const query = $('searchInput').value.trim();
-  const namespace = $('namespaceFilter').value;
+function renderSummary() {
+  $('namespaceCount').textContent = state.namespaces.length;
+  $('activeCount').textContent = state.namespaces.filter((ns) => ns.status === 'ACTIVE').length;
+  $('usedCount').textContent = state.namespaces.reduce((sum, ns) => sum + Number(ns.usedCount || 0), 0);
+}
 
-  if (query) params.set('q', query);
-  if (namespace) params.set('namespace', namespace);
-  params.set('page', String(page));
-  params.set('pageSize', String(state.pageSize));
+function applyFilter(resetPage = true) {
+  const query = $('searchInput').value.trim().toLowerCase();
 
-  $('workspaceMeta').textContent = '加载中...';
-  const data = await api('/api/v1/types/search?' + params.toString());
+  state.filtered = query
+    ? state.namespaces.filter((ns) => [
+        ns.code,
+        ns.displayName,
+        ns.description,
+        ns.status
+      ].some((value) => String(value || '').toLowerCase().includes(query)))
+    : [...state.namespaces];
 
-  state.page = data.page || page;
-  state.total = data.total || 0;
-  state.totalPages = data.totalPages || 0;
+  if (resetPage) state.page = 1;
 
-  renderTypeTable(data.items || []);
+  const totalPages = Math.max(1, Math.ceil(state.filtered.length / state.pageSize));
+  state.page = Math.min(state.page, totalPages);
+
+  renderNamespaceTable();
   renderPagination();
-  $('workspaceMeta').textContent = state.total
-    ? '共 ' + state.total + ' 条 · 第 ' + state.page + ' / ' + state.totalPages + ' 页'
-    : '共 0 条';
+
+  $('workspaceMeta').textContent = state.filtered.length
+    ? '共 ' + state.filtered.length + ' 个 Namespace · 第 ' + state.page + ' / ' + totalPages + ' 页'
+    : '没有匹配的 Namespace';
 }
 
-function renderTypeTable(items) {
+function renderNamespaceTable() {
+  const start = (state.page - 1) * state.pageSize;
+  const items = state.filtered.slice(start, start + state.pageSize);
+
   if (!items.length) {
-    $('typeTable').innerHTML = '<div class="empty">没有匹配结果</div>';
+    $('namespaceTable').innerHTML = '<div class="empty">没有匹配结果</div>';
     return;
   }
 
-  $('typeTable').innerHTML = [
+  $('namespaceTable').innerHTML = [
     '<table>',
       '<thead><tr>',
-        '<th class="col-namespace">Namespace</th>',
-        '<th class="col-value">值</th>',
-        '<th class="col-symbol">常量名</th>',
-        '<th class="col-project">项目</th>',
-        '<th class="col-description">描述</th>',
-        '<th class="col-source">来源</th>',
+        '<th class="col-code">Namespace</th>',
+        '<th class="col-name">名称</th>',
+        '<th class="col-number">当前最大</th>',
+        '<th class="col-number">下一可用</th>',
+        '<th class="col-number">已使用</th>',
+        '<th class="col-range">值范围</th>',
         '<th class="col-status">状态</th>',
       '</tr></thead>',
       '<tbody>',
-        items.map((item) => [
-          '<tr>',
-            '<td title="' + esc(item.namespace) + '"><button class="namespace-link" data-namespace="' + esc(item.namespace) + '">' + esc(item.namespace) + '</button></td>',
-            '<td><span class="type-value">' + esc(item.value) + '</span></td>',
-            '<td title="' + esc(item.symbol || '-') + '">' + esc(item.symbol || '-') + '</td>',
-            '<td title="' + esc(item.project || '-') + '">' + esc(item.project || '-') + '</td>',
-            '<td title="' + esc(item.description || '-') + '">' + esc(item.description || '-') + '</td>',
-            '<td title="' + esc(item.sourceRef || item.source || '-') + '">' + esc(item.sourceRef || item.source || '-') + '</td>',
-            '<td><span class="status ' + (item.status === 'DEPRECATED' ? 'deprecated' : '') + '">' + esc(item.status || '-') + '</span></td>',
+        items.map((ns) => [
+          '<tr class="namespace-row ' + (ns.code === state.selectedNamespace ? 'selected' : '') + '" data-namespace="' + esc(ns.code) + '">',
+            '<td><span class="namespace-code">' + esc(ns.code) + '</span></td>',
+            '<td title="' + esc(ns.description || ns.displayName || '-') + '">' + esc(ns.displayName || ns.description || '-') + '</td>',
+            '<td><strong>' + esc(valueOrDash(ns.currentMax)) + '</strong></td>',
+            '<td><span class="next-value">' + esc(valueOrDash(ns.nextValue)) + '</span></td>',
+            '<td>' + esc(ns.usedCount || 0) + '</td>',
+            '<td>' + esc(formatRange(ns)) + '</td>',
+            '<td><span class="status-pill ' + (ns.status === 'ACTIVE' ? 'active' : 'inactive') + '">' + esc(ns.status || '-') + '</span></td>',
           '</tr>'
         ].join('')).join(''),
       '</tbody>',
     '</table>'
   ].join('');
 
-  $('typeTable').querySelectorAll('[data-namespace]').forEach((button) => {
-    button.addEventListener('click', () => showNamespace(button.dataset.namespace));
+  $('namespaceTable').querySelectorAll('[data-namespace]').forEach((row) => {
+    row.addEventListener('click', () => showNamespace(row.dataset.namespace));
   });
 }
 
 function paginationItems(current, total) {
-  if (total <= 7) {
-    return Array.from({ length: total }, (_, index) => index + 1);
-  }
+  if (total <= 7) return Array.from({ length: total }, (_, index) => index + 1);
 
   const pages = [1];
   const start = Math.max(2, current - 1);
@@ -131,88 +155,114 @@ function paginationItems(current, total) {
 }
 
 function renderPagination() {
-  if (state.totalPages <= 1) {
-    $('pagination').innerHTML = state.total
-      ? '<span class="page-summary">每页 ' + state.pageSize + ' 条</span>'
+  const totalPages = Math.ceil(state.filtered.length / state.pageSize);
+
+  if (totalPages <= 1) {
+    $('pagination').innerHTML = state.filtered.length
+      ? '<span class="page-summary">每页最多 ' + state.pageSize + ' 个 Namespace</span>'
       : '';
     return;
   }
 
-  const pages = paginationItems(state.page, state.totalPages);
+  const pages = paginationItems(state.page, totalPages);
   $('pagination').innerHTML = [
-    '<span class="page-summary">共 ' + state.total + ' 条 · 每页 ' + state.pageSize + ' 条</span>',
+    '<span class="page-summary">每页 ' + state.pageSize + ' 个</span>',
     '<button class="page-button" data-page="' + (state.page - 1) + '" ' + (state.page <= 1 ? 'disabled' : '') + '>上一页</button>',
     pages.map((page) => page === '...'
       ? '<span class="page-ellipsis">...</span>'
       : '<button class="page-button ' + (page === state.page ? 'active' : '') + '" data-page="' + page + '">' + page + '</button>'
     ).join(''),
-    '<button class="page-button" data-page="' + (state.page + 1) + '" ' + (state.page >= state.totalPages ? 'disabled' : '') + '>下一页</button>'
+    '<button class="page-button" data-page="' + (state.page + 1) + '" ' + (state.page >= totalPages ? 'disabled' : '') + '>下一页</button>'
   ].join('');
 
   $('pagination').querySelectorAll('[data-page]:not([disabled])').forEach((button) => {
     button.addEventListener('click', () => {
-      const page = Number(button.dataset.page);
-      if (page !== state.page) loadTypes(page).catch(showError);
+      state.page = Number(button.dataset.page);
+      renderNamespaceTable();
+      renderPagination();
+      const total = Math.max(1, Math.ceil(state.filtered.length / state.pageSize));
+      $('workspaceMeta').textContent = '共 ' + state.filtered.length + ' 个 Namespace · 第 ' + state.page + ' / ' + total + ' 页';
     });
   });
 }
 
-async function showNamespace(code) {
+async function showNamespace(code, rerender = true) {
+  state.selectedNamespace = code;
+  if ($('allocateNamespace').value !== code) $('allocateNamespace').value = code;
+  if (rerender) renderNamespaceTable();
+
+  $('namespaceDetail').innerHTML = '<div class="detail-empty">加载中...</div>';
   const data = await api('/api/v1/namespaces/' + encodeURIComponent(code));
   const ns = data.namespace;
   const ranges = data.reservedRanges || [];
-  const visibleRanges = ranges.slice(0, 3);
+  const visibleRanges = ranges.slice(0, 4);
 
   const rangeHtml = visibleRanges.length
     ? '<div class="range-list">' + visibleRanges.map((range) => [
         '<div class="range-item">',
           '<strong>' + esc(range.startValue) + ' - ' + esc(range.endValue) + '</strong>',
-          '<span>' + esc(range.project || '-') + '</span>',
-          '<span>' + esc(range.description || '-') + '</span>',
+          '<span class="range-project">' + esc(range.project || '全局') + '</span>',
+          '<span title="' + esc(range.description || '') + '">' + esc(range.description || '无说明') + '</span>',
         '</div>'
       ].join('')).join('') + '</div>'
-    : '<div class="muted">无预留区间</div>';
+    : '<div class="no-range">无预留区间</div>';
 
   const more = ranges.length > visibleRanges.length
     ? '<div class="range-more">另有 ' + (ranges.length - visibleRanges.length) + ' 个预留区间</div>'
     : '';
 
   $('namespaceDetail').innerHTML = [
-    '<div class="detail-grid">',
-      '<div><span>Namespace</span><strong>' + esc(ns.code) + '</strong></div>',
-      '<div><span>当前最大</span><strong>' + esc(ns.currentMax ?? '-') + '</strong></div>',
-      '<div><span>下一值</span><strong>' + esc(ns.nextValue ?? '-') + '</strong></div>',
-      '<div><span>已使用</span><strong>' + esc(ns.usedCount ?? 0) + '</strong></div>',
+    '<div class="detail-header">',
+      '<div>',
+        '<span class="detail-label">Namespace</span>',
+        '<strong>' + esc(ns.code) + '</strong>',
+      '</div>',
+      '<span class="status-pill ' + (ns.status === 'ACTIVE' ? 'active' : 'inactive') + '">' + esc(ns.status || '-') + '</span>',
     '</div>',
+    '<div class="detail-grid">',
+      '<div><span>当前最大</span><strong>' + esc(valueOrDash(ns.currentMax)) + '</strong></div>',
+      '<div><span>下一可用</span><strong>' + esc(valueOrDash(ns.nextValue)) + '</strong></div>',
+      '<div><span>已使用</span><strong>' + esc(ns.usedCount || 0) + '</strong></div>',
+      '<div><span>值范围</span><strong>' + esc(formatRange(ns)) + '</strong></div>',
+    '</div>',
+    '<div class="description-box">',
+      '<span>说明</span>',
+      '<p>' + esc(ns.description || ns.displayName || '暂无说明') + '</p>',
+    '</div>',
+    '<div class="range-title"><span>预留区间</span><strong>' + ranges.length + '</strong></div>',
     rangeHtml,
     more
   ].join('');
 }
 
-function searchFromFirstPage() {
-  loadTypes(1).catch(showError);
-}
-
 function clearSearch() {
   $('searchInput').value = '';
-  $('namespaceFilter').value = '';
-  loadTypes(1).catch(showError);
+  applyFilter(true);
 }
 
 function showError(error) {
   $('workspaceMeta').textContent = '加载失败';
-  $('typeTable').innerHTML = '<div class="error">' + esc(error.message) + '</div>';
+  $('namespaceTable').innerHTML = '<div class="error">' + esc(error.message) + '</div>';
 }
 
 $('allocateForm').addEventListener('submit', async (event) => {
   event.preventDefault();
-  $('allocateResult').textContent = '提交中...';
+
+  const namespace = $('allocateNamespace').value;
+  if (!namespace) {
+    $('allocateResult').textContent = '没有可用的 Namespace';
+    $('allocateResult').className = 'allocate-result error-text';
+    return;
+  }
+
+  $('allocateResult').textContent = '正在申请...';
+  $('allocateResult').className = 'allocate-result muted';
 
   try {
     const data = await api('/api/v1/types/allocate', {
       method: 'POST',
       body: JSON.stringify({
-        namespace: $('allocateNamespace').value,
+        namespace,
         project: $('project').value.trim(),
         symbol: $('symbol').value.trim(),
         description: $('description').value.trim(),
@@ -221,23 +271,26 @@ $('allocateForm').addEventListener('submit', async (event) => {
       })
     });
 
-    $('allocateResult').textContent = data.namespace + '.' + data.symbol + ' = ' + data.value;
+    const symbol = data.symbol ? ' · ' + data.symbol : '';
+    $('allocateResult').textContent = '申请成功 · ' + data.namespace + ' = ' + data.value + symbol;
+    $('allocateResult').className = 'allocate-result success-text';
+
+    state.selectedNamespace = data.namespace;
     await loadNamespaces();
-    await loadTypes(1);
     await showNamespace(data.namespace);
   } catch (error) {
     $('allocateResult').textContent = error.message;
+    $('allocateResult').className = 'allocate-result error-text';
   }
 });
 
-$('searchButton').addEventListener('click', searchFromFirstPage);
+$('searchButton').addEventListener('click', () => applyFilter(true));
 $('clearSearchButton').addEventListener('click', clearSearch);
-
 $('searchInput').addEventListener('keydown', (event) => {
-  if (event.key === 'Enter') searchFromFirstPage();
+  if (event.key === 'Enter') applyFilter(true);
 });
+$('searchInput').addEventListener('input', () => applyFilter(true));
+$('allocateNamespace').addEventListener('change', (event) => showNamespace(event.target.value).catch(showError));
+$('refreshButton').addEventListener('click', () => loadNamespaces().catch(showError));
 
-$('namespaceFilter').addEventListener('change', searchFromFirstPage);
-$('refreshButton').addEventListener('click', () => loadTypes(state.page).catch(showError));
-
-Promise.all([loadNamespaces(), loadTypes(1)]).catch(showError);
+loadNamespaces().catch(showError);
