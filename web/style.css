@@ -39,7 +39,7 @@ button:disabled { cursor: default; opacity: .42; }
 .topbar {
   height: 64px;
   display: grid;
-  grid-template-columns: 250px minmax(520px, 1fr) 100px;
+  grid-template-columns: 250px minmax(520px, 1fr);
   align-items: center;
   gap: 16px;
   padding: 10px 16px;
@@ -79,7 +79,6 @@ button:disabled { cursor: default; opacity: .42; }
   background: #fff;
 }
 
-.token-button { padding-inline: 12px; }
 
 .dashboard {
   height: calc(100vh - 64px);
