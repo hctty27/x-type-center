@@ -122,9 +122,6 @@ func revoke(c client, args []string) error {
 	if (*entryID > 0) == (*allocationID != "") {
 		return errors.New("exactly one of --id or --allocation is required")
 	}
-	if strings.TrimSpace(*reason) == "" {
-		return errors.New("--reason is required")
-	}
 	payload := map[string]any{
 		"requester": *requester,
 		"reason":    *reason,
@@ -206,6 +203,6 @@ func usage() {
   resolve <namespace-or-alias>
   search [--namespace N] [--project P] <keyword>
   allocate --namespace N [--project P] [--symbol SYMBOL] [--description TEXT] [--requirement REF] [--requester USER]
-  revoke (--id ID | --allocation ALLOCATION_ID) --reason TEXT [--requester USER]
+  revoke (--id ID | --allocation ALLOCATION_ID) [--reason TEXT] [--requester USER]
   validate --namespace N --value V [--symbol SYMBOL] [--project P]`)
 }
