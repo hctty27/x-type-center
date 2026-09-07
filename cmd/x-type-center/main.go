@@ -86,7 +86,7 @@ func runServer(logger *slog.Logger, args []string) error {
 
 	registry := service.NewRegistry(db)
 	static := http.FileServer(http.FS(webassets.Files))
-	api := httpapi.New(registry, cfg.SkillPackagePath, logger)
+	api := httpapi.New(registry, cfg.SkillPackagePath, cfg.PublicURL, logger)
 	server := &http.Server{
 		Addr:         cfg.Addr,
 		Handler:      api.Routes(static),
@@ -244,5 +244,6 @@ Environment:
   TYPE_REGISTRY_ADDR
   TYPE_REGISTRY_DSN
   TYPE_REGISTRY_SKILL_PACKAGE_PATH
+  TYPE_REGISTRY_PUBLIC_URL
 `)
 }
