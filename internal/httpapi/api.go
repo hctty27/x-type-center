@@ -1,7 +1,6 @@
 package httpapi
 
 import (
-	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -18,12 +17,11 @@ import (
 
 type API struct {
 	registry *service.Registry
-	apiToken string
 	logger   *slog.Logger
 }
 
-func New(registry *service.Registry, apiToken string, logger *slog.Logger) *API {
-	return &API{registry: registry, apiToken: apiToken, logger: logger}
+func New(registry *service.Registry, logger *slog.Logger) *API {
+	return &API{registry: registry, logger: logger}
 }
 
 func (a *API) Routes(static http.Handler) http.Handler {
@@ -32,8 +30,8 @@ func (a *API) Routes(static http.Handler) http.Handler {
 	mux.HandleFunc("GET /api/v1/namespaces", a.listNamespaces)
 	mux.HandleFunc("GET /api/v1/namespaces/{code}", a.getNamespace)
 	mux.HandleFunc("GET /api/v1/types/search", a.searchTypes)
-	mux.Handle("POST /api/v1/types/allocate", a.requireWriteAuth(http.HandlerFunc(a.allocateType)))
-	mux.Handle("POST /api/v1/types/validate", a.requireWriteAuth(http.HandlerFunc(a.validateType)))
+	mux.HandleFunc("POST /api/v1/types/allocate", a.allocateType)
+	mux.HandleFunc("POST /api/v1/types/validate", a.validateType)
 	mux.Handle("/", static)
 	return a.withLogging(mux)
 }
@@ -128,20 +126,6 @@ func (a *API) validateType(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, result)
-}
-
-func (a *API) requireWriteAuth(next http.Handler) http.Handler {
-	if a.apiToken == "" {
-		return next
-	}
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		provided := strings.TrimSpace(strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "))
-		if subtle.ConstantTimeCompare([]byte(provided), []byte(a.apiToken)) != 1 {
-			writeError(w, http.StatusUnauthorized, "invalid API token")
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
 }
 
 func (a *API) fail(w http.ResponseWriter, err error) {
