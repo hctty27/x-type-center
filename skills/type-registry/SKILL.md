@@ -98,7 +98,7 @@ python3 <skill-dir>/scripts/type_registry.py allocate \
 
 ### 撤回
 
-Registry 支持撤回误申请，但撤回不是释放号码：entry 会变为 `REVOKED`，对应 value 永久保留，不得再次申请或手工复用。
+Registry 支持撤回误申请，但撤回不是释放号码：entry 会变为 `REVOKED`，对应 value 永久保留，不得再次申请或手工复用。撤回原因是可选字段，有明确上下文时建议填写。
 
 只有在以下情况使用撤回：
 
@@ -111,7 +111,6 @@ Registry 支持撤回误申请，但撤回不是释放号码：entry 会变为 `
 ```bash
 python3 <skill-dir>/scripts/type_registry.py revoke \
   --allocation alloc_xxx \
-  --reason "Namespace 选择错误" \
   --requester hc
 ```
 
@@ -120,7 +119,6 @@ python3 <skill-dir>/scripts/type_registry.py revoke \
 ```bash
 python3 <skill-dir>/scripts/type_registry.py revoke \
   --id 123 \
-  --reason "登记信息错误" \
   --requester hc
 ```
 
