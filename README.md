@@ -239,7 +239,7 @@ Authorization: Bearer <token>
 GET  /healthz
 GET  /api/v1/namespaces
 GET  /api/v1/namespaces/{code}
-GET  /api/v1/types/search?q=keyword&namespace=RankType&project=XH2
+GET  /api/v1/types/search?q=keyword&namespace=RankType&project=XH2&page=1&pageSize=10
 POST /api/v1/types/allocate
 POST /api/v1/types/validate
 ```
