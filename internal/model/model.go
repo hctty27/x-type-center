@@ -28,6 +28,14 @@ type NamespaceAlias struct {
 	CreatedAt   time.Time `json:"createdAt"`
 }
 
+type Project struct {
+	ID        int64     `json:"id"`
+	Name      string    `json:"name"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+
 type NamespaceResolveResult struct {
 	Matched      bool       `json:"matched"`
 	MatchType    string     `json:"matchType,omitempty"`
