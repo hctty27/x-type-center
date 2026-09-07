@@ -8,15 +8,15 @@ const (
 )
 
 type Namespace struct {
-	ID          int64  `json:"id"`
-	Code        string `json:"code"`
-	DisplayName string `json:"displayName"`
-	Description string `json:"description"`
-	NextValue   int64  `json:"nextValue"`
-	MinValue    *int64 `json:"minValue,omitempty"`
-	MaxValue    *int64 `json:"maxValue,omitempty"`
-	Status      string `json:"status"`
-	CurrentMax  *int64 `json:"currentMax,omitempty"`
+	ID          int64    `json:"id"`
+	Code        string   `json:"code"`
+	DisplayName string   `json:"displayName"`
+	Description string   `json:"description"`
+	NextValue   int64    `json:"nextValue"`
+	MinValue    *int64   `json:"minValue,omitempty"`
+	MaxValue    *int64   `json:"maxValue,omitempty"`
+	Status      string   `json:"status"`
+	CurrentMax  *int64   `json:"currentMax,omitempty"`
 	UsedCount   int64    `json:"usedCount"`
 	Aliases     []string `json:"aliases,omitempty"`
 }
