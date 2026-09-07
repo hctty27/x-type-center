@@ -5,6 +5,7 @@ import "time"
 const (
 	StatusActive     = "ACTIVE"
 	StatusDeprecated = "DEPRECATED"
+	StatusRevoked    = "REVOKED"
 )
 
 type Namespace struct {
@@ -47,20 +48,24 @@ type CreateNamespaceAliasRequest struct {
 }
 
 type TypeEntry struct {
-	ID          int64     `json:"id"`
-	NamespaceID int64     `json:"namespaceId"`
-	Namespace   string    `json:"namespace"`
-	Value       int64     `json:"value"`
-	Symbol      string    `json:"symbol,omitempty"`
-	Project     string    `json:"project,omitempty"`
-	Description string    `json:"description,omitempty"`
-	Requirement string    `json:"requirement,omitempty"`
-	Requester   string    `json:"requester,omitempty"`
-	Source      string    `json:"source,omitempty"`
-	SourceRef   string    `json:"sourceRef,omitempty"`
-	Status      string    `json:"status"`
-	CreatedAt   time.Time `json:"createdAt"`
-	UpdatedAt   time.Time `json:"updatedAt"`
+	ID           int64      `json:"id"`
+	NamespaceID  int64      `json:"namespaceId"`
+	Namespace    string     `json:"namespace"`
+	Value        int64      `json:"value"`
+	Symbol       string     `json:"symbol,omitempty"`
+	Project      string     `json:"project,omitempty"`
+	Description  string     `json:"description,omitempty"`
+	Requirement  string     `json:"requirement,omitempty"`
+	Requester    string     `json:"requester,omitempty"`
+	Source       string     `json:"source,omitempty"`
+	SourceRef    string     `json:"sourceRef,omitempty"`
+	Status       string     `json:"status"`
+	AllocationID string     `json:"allocationId,omitempty"`
+	RevokedAt    *time.Time `json:"revokedAt,omitempty"`
+	RevokedBy    string     `json:"revokedBy,omitempty"`
+	RevokeReason string     `json:"revokeReason,omitempty"`
+	CreatedAt    time.Time  `json:"createdAt"`
+	UpdatedAt    time.Time  `json:"updatedAt"`
 }
 
 type ReservedRange struct {
@@ -93,10 +98,22 @@ type AllocateBatchRequest struct {
 }
 
 type AllocateBatchResult struct {
-	Namespace string      `json:"namespace"`
-	Count     int         `json:"count"`
-	Values    []int64     `json:"values"`
-	Items     []TypeEntry `json:"items"`
+	AllocationID string      `json:"allocationId"`
+	Namespace    string      `json:"namespace"`
+	Count        int         `json:"count"`
+	Values       []int64     `json:"values"`
+	Items        []TypeEntry `json:"items"`
+}
+
+type RevokeRequest struct {
+	Requester string `json:"requester"`
+	Reason    string `json:"reason"`
+}
+
+type RevokeAllocationResult struct {
+	AllocationID string      `json:"allocationId"`
+	Count        int         `json:"count"`
+	Items        []TypeEntry `json:"items"`
 }
 
 type ValidateRequest struct {
