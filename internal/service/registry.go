@@ -26,6 +26,11 @@ func (r *Registry) ListNamespaces(ctx context.Context) ([]model.Namespace, error
 	return r.store.ListNamespaces(ctx)
 }
 
+func (r *Registry) ListProjects(ctx context.Context) ([]model.Project, error) {
+	return r.store.ListProjects(ctx)
+}
+
+
 func (r *Registry) GetNamespace(ctx context.Context, code string) (model.Namespace, []model.ReservedRange, error) {
 	ns, err := r.store.GetNamespace(ctx, strings.TrimSpace(code))
 	if err != nil {
@@ -165,6 +170,9 @@ func normalizeAllocateRequest(req model.AllocateRequest) (model.AllocateRequest,
 
 	if req.Namespace == "" {
 		return model.AllocateRequest{}, fmt.Errorf("namespace is required")
+	}
+	if utf8.RuneCountInString(req.Project) > 128 {
+		return model.AllocateRequest{}, fmt.Errorf("invalid project: must be at most 128 characters")
 	}
 	if req.Symbol != "" && !symbolPattern.MatchString(req.Symbol) {
 		return model.AllocateRequest{}, fmt.Errorf("symbol must match %s", symbolPattern.String())
