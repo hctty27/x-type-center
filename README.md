@@ -238,13 +238,13 @@ bin/type-registry allocate \
 撤回单条：
 
 ```bash
-bin/type-registry revoke --id 123 --reason '登记错误' --requester hc
+bin/type-registry revoke --id 123 --requester hc
 ```
 
 撤回一次申请：
 
 ```bash
-bin/type-registry revoke --allocation alloc_xxx --reason 'Namespace 选择错误' --requester hc
+bin/type-registry revoke --allocation alloc_xxx --requester hc
 ```
 
 ### 校验
@@ -283,7 +283,7 @@ POST /api/v1/types/validate
 
 项目字段可选。Web 端会从 `GET /api/v1/projects` 加载项目候选，同时允许直接输入新项目；当申请事务成功时，新项目会自动登记到 `projects` 表。已有 `type_entries` 和 `reserved_ranges` 中的项目会在迁移时自动回填到项目表。
 
-申请成功后返回 `allocationId`。Web 页面支持从申请结果直接撤回整批，也支持在 Namespace entries 中撤回单条记录。撤回只把状态改为 `REVOKED` 并记录撤回人、原因和时间，不回退 Namespace 游标，也不重新利用旧 value；重复调用同一撤回接口保持幂等。
+申请成功后返回 `allocationId`。Web 页面支持从申请结果直接撤回整批，也支持在 Namespace entries 中撤回单条记录。撤回只把状态改为 `REVOKED` 并记录撤回人、可选的撤回原因和时间，不回退 Namespace 游标，也不重新利用旧 value；重复调用同一撤回接口保持幂等。
 
 申请示例：
 
@@ -419,7 +419,7 @@ Namespace 的全局替代名称。别名全局唯一，用于把“商城类型�
 
 ### type_entry_revocations
 
-记录撤回人、撤回原因和撤回时间。撤回不物理删除 `type_entries`。
+记录撤回人、可选的撤回原因和撤回时间。撤回不物理删除 `type_entries`。
 
 ### reserved_ranges
 
