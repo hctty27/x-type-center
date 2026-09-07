@@ -5,8 +5,8 @@
 ## 架构
 
 ```text
-AI Agent -> Skill -> type-registry CLI -> HTTP API -> Go Service -> MySQL
-Web UI -------------------------------> HTTP API -> Go Service -> MySQL
+AI Agent -> Skill bundled client -> HTTP API -> Go Service -> MySQL
+Web UI -----------------------------> HTTP API -> Go Service -> MySQL
 Excel Import -> x-type-center import -------------> MySQL
 ```
 
@@ -47,7 +47,6 @@ UNIQUE(namespace_id, symbol)
 ### Docker Compose
 
 ```bash
-export TYPE_REGISTRY_TOKEN='replace-me'
 docker compose up -d --build
 ```
 
@@ -75,7 +74,6 @@ CREATE DATABASE x_type_center CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
 
 ```bash
 export TYPE_REGISTRY_DSN='type_center:type_center@tcp(127.0.0.1:3306)/x_type_center?charset=utf8mb4&parseTime=true&loc=UTC'
-export TYPE_REGISTRY_TOKEN='replace-me'
 go run ./cmd/x-type-center server
 ```
 
@@ -188,7 +186,6 @@ make import FILE=/path/to/types.xlsx
 ```bash
 make cli
 export TYPE_REGISTRY_URL=http://127.0.0.1:8080
-export TYPE_REGISTRY_TOKEN='replace-me'
 ```
 
 ### Namespace
@@ -227,11 +224,7 @@ bin/type-registry validate \
 
 ## HTTP API
 
-读取接口默认无需 Token；写接口在配置 `TYPE_REGISTRY_TOKEN` 后要求：
-
-```http
-Authorization: Bearer <token>
-```
+API 不使用应用层 Token。Web、Skill 和 CLI 都直接调用同一套接口。
 
 主要接口：
 
@@ -249,7 +242,6 @@ POST /api/v1/types/validate
 ```bash
 curl -X POST http://127.0.0.1:8080/api/v1/types/allocate \
   -H 'Content-Type: application/json' \
-  -H "Authorization: Bearer $TYPE_REGISTRY_TOKEN" \
   -d '{
     "namespace":"RankType",
     "project":"XH2",
@@ -262,10 +254,14 @@ curl -X POST http://127.0.0.1:8080/api/v1/types/allocate \
 
 ## AI Skill
 
-Skill 位于：
+Skill 目录：
 
 ```text
-skills/type-registry/SKILL.md
+skills/type-registry/
+├── SKILL.md
+├── config.json
+└── scripts/
+    └── type_registry.py
 ```
 
 核心规则：
@@ -276,14 +272,26 @@ search -> status -> allocate -> 修改代码 -> validate
 
 禁止 AI 根据项目常量类里的当前最大值自行递增。
 
-Skill 不保存 Token。客户端通过：
+### 零配置接入项目
 
-```text
-TYPE_REGISTRY_URL
-TYPE_REGISTRY_TOKEN
+把整个 `skills/type-registry` 目录复制到目标项目支持的 Skill 目录即可。Skill 自带 Python 标准库 HTTP 客户端：
+
+- 不需要 MCP。
+- 不需要 Token。
+- 不需要安装 `type-registry` CLI。
+- 不需要项目配置环境变量。
+- Registry 地址从 Skill 自带的 `config.json` 读取。
+
+开发环境默认：
+
+```json
+{
+  "baseUrl": "http://127.0.0.1:8080",
+  "timeoutSeconds": 10
+}
 ```
 
-访问服务。
+正式在多个项目分发前，把 `baseUrl` 改成公司内网统一的 X Type Center 地址。之后所有项目只需要复制同一份 Skill 目录。
 
 ## 配置
 
@@ -291,7 +299,6 @@ TYPE_REGISTRY_TOKEN
 |---|---|
 | `TYPE_REGISTRY_ADDR` | `:8080` |
 | `TYPE_REGISTRY_DSN` | 本地 MySQL DSN |
-| `TYPE_REGISTRY_TOKEN` | 空，写接口不鉴权；生产必须配置 |
 | `TYPE_REGISTRY_READ_TIMEOUT` | `10s` |
 | `TYPE_REGISTRY_WRITE_TIMEOUT` | `15s` |
 | `TYPE_REGISTRY_IDLE_TIMEOUT` | `60s` |
@@ -332,5 +339,4 @@ x-type-center version
 
 - 已使用类型不要物理删除，后续应增加 `DEPRECATED` 管理入口。
 - Excel 导入应先在测试库执行并检查报告，再切换 Registry 为唯一写入口。
-- 生产环境必须配置 API Token，并建议放在公司网关/SSO 后。
-- `TYPE_REGISTRY_TOKEN` 不要提交到仓库、Skill 或项目代码。
+- API 本身不做应用层鉴权；生产环境建议仅暴露在公司内网/VPN，或由统一网关/SSO 控制访问范围。
