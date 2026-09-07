@@ -22,6 +22,7 @@ cli:
 
 skill-package:
 	mkdir -p dist
+	rm -f dist/type-registry-skill.zip dist/type-registry-skill.zip.sha256
 	cd skills && zip -qr ../dist/type-registry-skill.zip type-registry
 	cd dist && sha256sum type-registry-skill.zip > type-registry-skill.zip.sha256
 
