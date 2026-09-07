@@ -227,7 +227,7 @@ func runVersion(args []string) error {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, `x-type-center commands:
+	fmt.Fprint(os.Stderr, `x-type-center commands:
   server
       Start HTTP API and embedded Web UI.
 
