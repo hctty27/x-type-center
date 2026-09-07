@@ -35,7 +35,6 @@ type Project struct {
 	UpdatedAt time.Time `json:"updatedAt"`
 }
 
-
 type NamespaceResolveResult struct {
 	Matched      bool       `json:"matched"`
 	MatchType    string     `json:"matchType,omitempty"`
