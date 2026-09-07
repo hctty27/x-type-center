@@ -143,7 +143,7 @@ func (r *Registry) AllocateBatch(ctx context.Context, req model.AllocateBatchReq
 		return model.AllocateBatchResult{}, fmt.Errorf("invalid symbol: batch allocation requires an empty symbol")
 	}
 
-	items, err := r.store.AllocateBatch(ctx, normalized, count)
+	allocationID, items, err := r.store.AllocateBatch(ctx, normalized, count)
 	if err != nil {
 		return model.AllocateBatchResult{}, err
 	}
@@ -152,11 +152,59 @@ func (r *Registry) AllocateBatch(ctx context.Context, req model.AllocateBatchReq
 		values = append(values, item.Value)
 	}
 	return model.AllocateBatchResult{
-		Namespace: normalized.Namespace,
-		Count:     len(items),
-		Values:    values,
-		Items:     items,
+		AllocationID: allocationID,
+		Namespace:    normalized.Namespace,
+		Count:        len(items),
+		Values:       values,
+		Items:        items,
 	}, nil
+}
+
+func (r *Registry) RevokeEntry(ctx context.Context, id int64, req model.RevokeRequest) (model.TypeEntry, error) {
+	if id <= 0 {
+		return model.TypeEntry{}, fmt.Errorf("invalid entry id")
+	}
+	normalized, err := normalizeRevokeRequest(req)
+	if err != nil {
+		return model.TypeEntry{}, err
+	}
+	return r.store.RevokeEntry(ctx, id, normalized.Requester, normalized.Reason)
+}
+
+func (r *Registry) RevokeAllocation(ctx context.Context, allocationID string, req model.RevokeRequest) (model.RevokeAllocationResult, error) {
+	allocationID = strings.TrimSpace(allocationID)
+	if allocationID == "" {
+		return model.RevokeAllocationResult{}, fmt.Errorf("allocation id is required")
+	}
+	normalized, err := normalizeRevokeRequest(req)
+	if err != nil {
+		return model.RevokeAllocationResult{}, err
+	}
+	items, err := r.store.RevokeAllocation(ctx, allocationID, normalized.Requester, normalized.Reason)
+	if err != nil {
+		return model.RevokeAllocationResult{}, err
+	}
+	return model.RevokeAllocationResult{
+		AllocationID: allocationID,
+		Count:        len(items),
+		Items:        items,
+	}, nil
+}
+
+func normalizeRevokeRequest(req model.RevokeRequest) (model.RevokeRequest, error) {
+	req.Requester = strings.TrimSpace(req.Requester)
+	req.Reason = strings.TrimSpace(req.Reason)
+
+	if req.Reason == "" {
+		return model.RevokeRequest{}, fmt.Errorf("reason is required")
+	}
+	if utf8.RuneCountInString(req.Requester) > 128 {
+		return model.RevokeRequest{}, fmt.Errorf("invalid requester: must be at most 128 characters")
+	}
+	if utf8.RuneCountInString(req.Reason) > 500 {
+		return model.RevokeRequest{}, fmt.Errorf("invalid reason: must be at most 500 characters")
+	}
+	return req, nil
 }
 
 func normalizeAllocateRequest(req model.AllocateRequest) (model.AllocateRequest, error) {
