@@ -48,6 +48,14 @@ python3 <skill-dir>/scripts/type_registry.py search --namespace RankType "CHAOS_
 
 ### 申请
 
+只有 Namespace 是分配所必需的，其余元数据均可省略：
+
+```bash
+python3 <skill-dir>/scripts/type_registry.py allocate --namespace RankType
+```
+
+有业务信息时再附带可选字段：
+
 ```bash
 python3 <skill-dir>/scripts/type_registry.py allocate \
   --namespace RankType \
