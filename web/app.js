@@ -835,11 +835,6 @@ $('revokeForm').addEventListener('submit', async (event) => {
   const reason = $('revokeReason').value.trim();
   const requester = $('revokeRequester').value.trim();
 
-  if (!reason) {
-    $('revokeMessage').textContent = '请输入撤回原因';
-    return;
-  }
-
   const path = target.mode === 'allocation'
     ? '/api/v1/allocations/' + encodeURIComponent(target.allocationId) + '/revoke'
     : '/api/v1/types/' + encodeURIComponent(target.entryId) + '/revoke';
