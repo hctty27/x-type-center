@@ -15,6 +15,7 @@ Registry 是唯一事实源。Excel 仅用于历史数据首次导入；代码�
 ## 能力
 
 - Namespace 列表、当前最大值、下一个可分配值
+- Namespace 全局别名与标准名称解析
 - 全局/按 Namespace 搜索
 - 原子申请新类型
 - 项目预留区间
@@ -197,6 +198,14 @@ bin/type-registry namespaces
 bin/type-registry status RankType
 ```
 
+### Namespace 别名解析
+
+```bash
+bin/type-registry resolve '商城类型'
+```
+
+标准 code、标准名称或已登记别名都会解析到唯一的标准 Namespace。
+
 ### 搜索
 
 ```bash
@@ -241,7 +250,11 @@ API 不使用应用层 Token。Web、Skill 和 CLI 都直接调用同一套接�
 ```text
 GET  /healthz
 GET  /api/v1/namespaces
+GET  /api/v1/namespaces/resolve?q=商城类型
 GET  /api/v1/namespaces/{code}
+GET  /api/v1/namespaces/{code}/aliases
+POST /api/v1/namespaces/{code}/aliases
+DELETE /api/v1/namespaces/{code}/aliases/{id}
 GET  /api/v1/types/search?q=keyword&namespace=RankType&project=XH2&page=1&pageSize=10
 GET  /api/v1/skill-package
 POST /api/v1/types/allocate
@@ -278,10 +291,10 @@ skills/type-registry/
 核心规则：
 
 ```text
-search -> status -> allocate -> 修改代码 -> validate
+resolve -> search -> status -> allocate -> 修改代码 -> validate
 ```
 
-禁止 AI 根据项目常量类里的当前最大值自行递增。
+禁止 AI 根据项目常量类里的当前最大值自行递增；项目术语不是标准 Namespace code 时必须先通过 Registry resolve，不能凭名称自行猜测。
 
 ### 零配置接入项目
 
@@ -364,6 +377,10 @@ type-registry-skill.zip.sha256
 ### type_namespaces
 
 每种全局类型一个 Namespace，并保存分配游标 `next_value`。
+
+### namespace_aliases
+
+Namespace 的全局替代名称。别名全局唯一，用于把“商城类型”“MallType”等项目术语确定性解析到标准 Namespace；第一版不区分 project。
 
 ### type_entries
 
