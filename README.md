@@ -7,7 +7,7 @@
 ```text
 AI Agent -> Skill -> type-registry CLI -> HTTP API -> Go Service -> MySQL
 Web UI -------------------------------> HTTP API -> Go Service -> MySQL
-Excel Import -------------------------------------> Go Service -> MySQL
+Excel Import -> x-type-center import -------------> MySQL
 ```
 
 Registry 是唯一事实源。Excel 仅用于历史数据首次导入；代码常量不是分配依据。
@@ -22,7 +22,8 @@ Registry 是唯一事实源。Excel 仅用于历史数据首次导入；代码�
 - 类型校验
 - Web 查询和申请页面
 - AI Skill + CLI 工作流
-- Docker Compose 一键启动
+- 单 Go 二进制部署（server/import/migrate/version）
+- Docker Compose 本地开发可选
 
 ## 并发分配
 
@@ -75,21 +76,91 @@ CREATE DATABASE x_type_center CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
 ```bash
 export TYPE_REGISTRY_DSN='type_center:type_center@tcp(127.0.0.1:3306)/x_type_center?charset=utf8mb4&parseTime=true&loc=UTC'
 export TYPE_REGISTRY_TOKEN='replace-me'
-go run ./cmd/server
+go run ./cmd/x-type-center server
 ```
 
 服务启动时自动执行幂等 DDL。
 
+## 单二进制部署
+
+编译当前平台：
+
+```bash
+make build VERSION=v0.1.0
+```
+
+产物：
+
+```text
+bin/x-type-center
+```
+
+交叉编译 Linux amd64：
+
+```bash
+make build-linux VERSION=v0.1.0
+```
+
+产物：
+
+```text
+dist/x-type-center-linux-amd64
+```
+
+服务端只需要这个二进制和可访问的 MySQL：
+
+```bash
+x-type-center server
+x-type-center migrate
+x-type-center import --file /path/to/types.xlsx
+x-type-center version
+```
+
+Web 静态资源、数据库 migration SQL 和默认 Excel mapping 都已编译进二进制，不要求服务器安装 Go、Node、Docker 或额外配置文件。
+
+### systemd
+
+仓库提供：
+
+```text
+deploy/systemd/x-type-center.service
+deploy/systemd/x-type-center.env.example
+```
+
+典型部署：
+
+```bash
+sudo install -m 0755 dist/x-type-center-linux-amd64 /usr/local/bin/x-type-center
+sudo useradd --system --no-create-home --shell /usr/sbin/nologin x-type-center || true
+sudo mkdir -p /etc/x-type-center
+sudo cp deploy/systemd/x-type-center.env.example /etc/x-type-center/x-type-center.env
+sudo cp deploy/systemd/x-type-center.service /etc/systemd/system/x-type-center.service
+
+sudo systemctl daemon-reload
+sudo systemctl enable --now x-type-center
+sudo systemctl status x-type-center
+```
+
+日志：
+
+```bash
+journalctl -u x-type-center -f
+```
+
 ## 导入历史 Excel
 
-当前仓库的 `config/import-mapping.json` 已按原始类型表配置 5 个数据 Sheet、59 个类型列。
+默认 mapping 已通过 `go:embed` 编译进 `x-type-center`，按原始类型表配置 5 个数据 Sheet、59 个类型列。
 
 导入器按表头文字定位列，不依赖 `A/B/C` 等固定列号，因此插入普通列不会导致映射错位。
 
 ```bash
-go run ./cmd/import-xlsx \
-  --file /path/to/types.xlsx \
-  --mapping config/import-mapping.json
+go run ./cmd/x-type-center import --file /path/to/types.xlsx
+```
+
+如需临时覆盖 mapping，仍可显式传入：
+
+```bash
+x-type-center import --file /path/to/types.xlsx --mapping /path/to/mapping.json
 ```
 
 或：
@@ -127,7 +198,7 @@ bin/type-registry namespaces
 bin/type-registry status RankType
 ```
 
-### 搜紺
+### 搜索
 
 ```bash
 bin/type-registry search --namespace RankType '混沌灵域'
@@ -245,6 +316,17 @@ TYPE_REGISTRY_TOKEN
 ### audit_logs
 
 记录 Registry 写操作，便于追查谁申请了什么值。
+
+## 服务端命令
+
+```text
+x-type-center server
+x-type-center import --file <types.xlsx> [--mapping <mapping.json>]
+x-type-center migrate
+x-type-center version
+```
+
+其中 `server`、`import` 会自动执行当前幂等 migration；`migrate` 适合部署阶段显式初始化数据库。
 
 ## 注意事项
 
