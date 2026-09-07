@@ -587,11 +587,11 @@ func (s *MySQL) AllocateBatch(ctx context.Context, req model.AllocateRequest, co
 		}
 
 		if _, err := tx.ExecContext(ctx, `
-			INSERT INTO audit_logs(action, namespace_code, entry_value, actor, detail)
-			VALUES ('ALLOCATE', ?, ?, ?, JSON_OBJECT(
+			INSERT INTO audit_logs(action, namespace_code, entry_value, actor, client_ip, detail)
+			VALUES ('ALLOCATE', ?, ?, ?, ?, JSON_OBJECT(
 				'allocationId', ?, 'project', ?, 'symbol', ?, 'description', ?
 			))`,
-			req.Namespace, candidate, req.Requester, allocationID, req.Project, req.Symbol, req.Description); err != nil {
+			req.Namespace, candidate, req.Requester, req.ClientIP, allocationID, req.Project, req.Symbol, req.Description); err != nil {
 			return "", nil, fmt.Errorf("write audit log: %w", err)
 		}
 
@@ -628,7 +628,7 @@ func newAllocationID() (string, error) {
 	return "alloc_" + hex.EncodeToString(data[:]), nil
 }
 
-func (s *MySQL) RevokeEntry(ctx context.Context, id int64, requester, reason string) (model.TypeEntry, error) {
+func (s *MySQL) RevokeEntry(ctx context.Context, id int64, requester, reason, clientIP string) (model.TypeEntry, error) {
 	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
 	if err != nil {
 		return model.TypeEntry{}, fmt.Errorf("begin revoke tx: %w", err)
@@ -672,9 +672,9 @@ func (s *MySQL) RevokeEntry(ctx context.Context, id int64, requester, reason str
 		return model.TypeEntry{}, fmt.Errorf("record entry revocation: %w", err)
 	}
 	if _, err := tx.ExecContext(ctx, `
-		INSERT INTO audit_logs(action, namespace_code, entry_value, actor, detail)
-		VALUES ('REVOKE', ?, ?, ?, JSON_OBJECT('reason', ?))`,
-		namespace, value, requester, reason); err != nil {
+		INSERT INTO audit_logs(action, namespace_code, entry_value, actor, client_ip, detail)
+		VALUES ('REVOKE', ?, ?, ?, ?, JSON_OBJECT('reason', ?))`,
+		namespace, value, requester, clientIP, reason); err != nil {
 		return model.TypeEntry{}, fmt.Errorf("write revoke audit log: %w", err)
 	}
 
@@ -684,7 +684,7 @@ func (s *MySQL) RevokeEntry(ctx context.Context, id int64, requester, reason str
 	return s.GetEntryByID(ctx, id)
 }
 
-func (s *MySQL) RevokeAllocation(ctx context.Context, allocationID, requester, reason string) ([]model.TypeEntry, error) {
+func (s *MySQL) RevokeAllocation(ctx context.Context, allocationID, requester, reason, clientIP string) ([]model.TypeEntry, error) {
 	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
 	if err != nil {
 		return nil, fmt.Errorf("begin allocation revoke tx: %w", err)
@@ -759,9 +759,9 @@ func (s *MySQL) RevokeAllocation(ctx context.Context, allocationID, requester, r
 			return nil, fmt.Errorf("record allocation revocation: %w", err)
 		}
 		if _, err := tx.ExecContext(ctx, `
-			INSERT INTO audit_logs(action, namespace_code, entry_value, actor, detail)
-			VALUES ('REVOKE', ?, ?, ?, JSON_OBJECT('allocationId', ?, 'reason', ?))`,
-			item.namespace, item.value, requester, allocationID, reason); err != nil {
+			INSERT INTO audit_logs(action, namespace_code, entry_value, actor, client_ip, detail)
+			VALUES ('REVOKE', ?, ?, ?, ?, JSON_OBJECT('allocationId', ?, 'reason', ?))`,
+			item.namespace, item.value, requester, clientIP, allocationID, reason); err != nil {
 			return nil, fmt.Errorf("write allocation revoke audit log: %w", err)
 		}
 	}
