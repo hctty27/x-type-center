@@ -195,7 +195,7 @@ function renderNamespaceTable() {
             '<td><span class="namespace-code">' + esc(ns.code) + '</span></td>',
             '<td title="' + esc(ns.description || ns.displayName || '-') + '">' + esc(ns.displayName || '-') + '</td>',
             '<td title="' + esc(aliasSummary(ns)) + '">' + esc(aliasSummary(ns)) + '</td>',
-            '<td><strong>' + esc(valueOrDash(ns.currentMax)) + '</strong></td>'
+            '<td><strong>' + esc(valueOrDash(ns.currentMax)) + '</strong></td>',
             '<td><span class="next-value">' + esc(valueOrDash(ns.nextValue)) + '</span></td>',
             '<td>' + esc(ns.usedCount || 0) + '</td>',
             '<td>' + esc(formatRange(ns)) + '</td>',
