@@ -58,6 +58,11 @@ def command_status(args):
     print_json(request_json("GET", "/api/v1/namespaces/" + quote(args.namespace, safe="")))
 
 
+def command_resolve(args):
+    query = {"q": args.keyword}
+    print_json(request_json("GET", "/api/v1/namespaces/resolve?" + urlencode(query)))
+
+
 def command_search(args):
     query = {
         "q": args.keyword,
@@ -107,6 +112,10 @@ def build_parser():
     status = commands.add_parser("status")
     status.add_argument("namespace")
     status.set_defaults(handler=command_status)
+
+    resolve = commands.add_parser("resolve")
+    resolve.add_argument("keyword")
+    resolve.set_defaults(handler=command_resolve)
 
     search = commands.add_parser("search")
     search.add_argument("keyword", nargs="?", default="")
