@@ -96,6 +96,36 @@ python3 <skill-dir>/scripts/type_registry.py allocate \
 3. 如果需求需要多个具体业务常量，将返回的 `values` 按需求顺序写入代码。
 4. 批量申请后的校验不要传 `--symbol`，按 Namespace、value 和可选的 project 校验。
 
+### 撤回
+
+Registry 支持撤回误申请，但撤回不是释放号码：entry 会变为 `REVOKED`，对应 value 永久保留，不得再次申请或手工复用。
+
+只有在以下情况使用撤回：
+
+1. 用户明确要求撤回。
+2. 当前 AI 刚完成一次错误申请，并且能够确定本次返回的 `allocationId`。
+3. 不得为了“省号码”或获取更小的 value 主动撤回。
+
+整批撤回优先使用本次申请返回的 `allocationId`：
+
+```bash
+python3 <skill-dir>/scripts/type_registry.py revoke \
+  --allocation alloc_xxx \
+  --reason "Namespace 选择错误" \
+  --requester hc
+```
+
+单条历史记录需要已知 entry id：
+
+```bash
+python3 <skill-dir>/scripts/type_registry.py revoke \
+  --id 123 \
+  --reason "登记信息错误" \
+  --requester hc
+```
+
+撤回接口是幂等的；重复撤回同一条已 `REVOKED` 的记录不会释放 value，也不会让该 value 重新可分配。
+
 ### 校验
 
 单个申请且 Registry 中登记了 symbol 时：
@@ -126,7 +156,8 @@ python3 <skill-dir>/scripts/type_registry.py validate \
 3. 使用业务中文名、英文常量名分别搜索，避免重复定义。
 4. 已存在时优先复用，不得再次申请。
 5. 不存在时查看标准 Namespace 状态。
-6. 根据需求数量调用 `allocate` 原子申请值；单个申请默认 `count=1`，多个值使用 `--count`。
+6. 根据需求数量调用 `allocate` 原子申请值；单个申请默认 `count=1`，多个值使用 `--count`，并保留返回的 `allocationId`。
 7. 仅将本次 `allocate` 返回的 value/values 写入项目代码，不得自行推算或二次申请替代。
-8. 完成修改后调用 `validate`；批量申请的值不传 symbol。
-9. `resolve` 未命中或 Registry 不可访问时不得自行猜测 Namespace 或新值，应明确报告无法安全处理。
+8. 如果用户明确指出本次申请有误，可使用返回的 `allocationId` 撤回整批；撤回值永久不可复用。
+9. 完成修改后调用 `validate`；批量申请的值不传 symbol。
+10. `resolve` 未命中或 Registry 不可访问时不得自行猜测 Namespace 或新值，应明确报告无法安全处理。
