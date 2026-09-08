@@ -37,6 +37,34 @@ func TestCompareSemanticVersion(t *testing.T) {
 	}
 }
 
+func TestVersionInfoUsesUnifiedProductVersion(t *testing.T) {
+	t.Parallel()
+
+	api := &API{buildInfo: BuildInfo{
+		Version:   "main-999-abcdef0",
+		Commit:    "abcdef0123456789",
+		BuildTime: "2026-09-08T00:00:00Z",
+	}}
+	request := httptest.NewRequest(http.MethodGet, "http://registry.local/api/v1/version", nil)
+	response := httptest.NewRecorder()
+
+	api.versionInfo(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d", response.Code)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if got := payload["version"]; got != product.Version {
+		t.Fatalf("version = %v, want %s", got, product.Version)
+	}
+	if got := payload["buildVersion"]; got != "main-999-abcdef0" {
+		t.Fatalf("buildVersion = %v", got)
+	}
+}
+
 func TestSkillManifestMatchesServerVersion(t *testing.T) {
 	t.Parallel()
 
