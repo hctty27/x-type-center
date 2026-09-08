@@ -13,6 +13,7 @@ import (
 
 	"github.com/hctty27/x-type-center/internal/config"
 	"github.com/hctty27/x-type-center/internal/httpapi"
+	"github.com/hctty27/x-type-center/internal/product"
 	"github.com/hctty27/x-type-center/internal/service"
 	"github.com/hctty27/x-type-center/internal/store"
 	webassets "github.com/hctty27/x-type-center/web"
@@ -100,7 +101,7 @@ func runServer(logger *slog.Logger, args []string) error {
 
 	serverErr := make(chan error, 1)
 	go func() {
-		logger.Info("type registry started", "addr", cfg.Addr, "version", version, "commit", commit)
+		logger.Info("type registry started", "addr", cfg.Addr, "version", product.Version, "build_version", version, "commit", commit)
 		err := server.ListenAndServe()
 		if err != nil && !errors.Is(err, http.ErrServerClosed) {
 			serverErr <- err
@@ -164,7 +165,7 @@ func runVersion(args []string) error {
 		return fmt.Errorf("version does not accept positional arguments")
 	}
 
-	fmt.Fprintf(os.Stdout, "x-type-center %s\ncommit: %s\nbuilt: %s\n", version, commit, buildTime)
+	fmt.Fprintf(os.Stdout, "x-type-center %s\nbuild: %s\ncommit: %s\nbuilt: %s\n", product.Version, version, commit, buildTime)
 	return nil
 }
 
