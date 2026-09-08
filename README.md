@@ -21,7 +21,7 @@ Registry 是唯一事实源，代码常量不是分配依据。
 - 类型校验
 - Web Namespace 总览和申请页面
 - Web 一键下载 AI Skill 包
-- Web 展示服务端版本和最新 Skill 版本
+- Web 左上角展示统一产品版本（Web / 服务端 / Skill 共用）
 - Skill 版本检查、自更新和最低兼容版本控制
 - AI Skill + CLI 工作流
 - 单 Go 二进制部署（server/migrate/version）
@@ -347,7 +347,7 @@ TYPE_REGISTRY_PUBLIC_URL=https://x-type-center.internal
 
 客户端 IP 审计默认只使用 TCP 连接的远端地址，不信任 `X-Forwarded-For`。如果服务部署在 Nginx / LB 后面，可配置例如 `TYPE_REGISTRY_TRUSTED_PROXIES=127.0.0.1/32`；只有直接连接来源命中可信代理列表时，服务端才会从完整 `X-Forwarded-For` 链右侧向左跳过可信代理并选择客户端地址。可信代理范围应尽量精确，不要为了方便配置过大的网段。
 
-未配置 Skill 路径、文件不存在、ZIP 缺少必要文件，或 ZIP 中 `manifest.json` 的版本与服务端最新 Skill 版本不一致时，页面下载按钮会不可用。Web 顶部版本徽标也会提示“下载包未同步”。
+未配置 Skill 路径、文件不存在、ZIP 缺少必要文件，或 ZIP 中 `manifest.json` 的版本与当前 X Type Center 产品版本不一致时，页面下载按钮会不可用。Web 左上角统一显示当前产品版本。
 
 本地生成 Skill ZIP 模板：
 
@@ -453,5 +453,5 @@ x-type-center version
 
 - 已使用类型不要物理删除；误申请使用 `REVOKED`，正式下线使用 `DEPRECATED`。
 - `REVOKED` value 只允许由 Registry 后续 `allocate` 自动复用；历史天然空洞也不能手工认领。
-- 发布新的 Skill 规则时同步递增 `manifest.json` 版本，并同步更新服务端最新/最低支持版本；服务端 ZIP 必须与最新版本一致。
+- Web、服务端和 Skill 使用同一个 X Type Center 产品版本。发布任何需要版本变化的修改时统一升级产品版本，并确保 `manifest.json` 与产品版本一致；`minSupportedVersion` 只表示旧 Skill 的最低兼容门槛。
 - API 本身不做应用层鉴权；生产环境建议仅暴露在公司内网/VPN，或由统一网关/SSO 控制访问范围。
