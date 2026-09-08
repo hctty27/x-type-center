@@ -7,10 +7,9 @@
 ```text
 AI Agent -> Skill bundled client -> HTTP API -> Go Service -> MySQL
 Web UI -----------------------------> HTTP API -> Go Service -> MySQL
-Excel Import -> x-type-center import -------------> MySQL
 ```
 
-Registry 是唯一事实源。Excel 仅用于历史数据首次导入；代码常量不是分配依据。
+Registry 是唯一事实源，代码常量不是分配依据。
 
 ## 能力
 
@@ -19,12 +18,11 @@ Registry 是唯一事实源。Excel 仅用于历史数据首次导入；代码�
 - 全局/按 Namespace 搜索
 - 原子申请新类型
 - 项目预留区间
-- 历史 Excel 导入
 - 类型校验
 - Web Namespace 总览和申请页面
 - Web 一键下载 AI Skill 包
 - AI Skill + CLI 工作流
-- 单 Go 二进制部署（server/import/migrate/version）
+- 单 Go 二进制部署（server/migrate/version）
 - Docker Compose 本地开发可选
 
 ## 并发分配
@@ -38,8 +36,8 @@ SELECT ... FROM type_namespaces WHERE code = ? FOR UPDATE;
 同一个 Namespace 的并发申请被串行化。数据库同时使用：
 
 ```text
-UNIQUE(namespace_id, value)
-UNIQUE(namespace_id, symbol)
+UNIQUE(namespace_id, active_value)
+UNIQUE(namespace_id, active_symbol)
 ```
 
 做最终一致性兜底。
@@ -79,7 +77,7 @@ export TYPE_REGISTRY_DSN='type_center:type_center@tcp(127.0.0.1:3306)/x_type_cen
 go run ./cmd/x-type-center server
 ```
 
-服务启动时自动执行幂等 DDL。旧版 9 表数据库会先校验并迁移数据，再收敛为 4 张业务表；新库直接创建 4 表结构。
+服务启动时自动执行幂等 DDL。旧库会先校验并迁移数据，再收敛为 3 张业务表；新库直接创建 3 表结构。撤回记录保留历史，但其 value/symbol 不再占用唯一键。
 
 ## 单二进制部署
 
@@ -112,11 +110,10 @@ dist/x-type-center-linux-amd64
 ```bash
 x-type-center server
 x-type-center migrate
-x-type-center import --file /path/to/types.xlsx
 x-type-center version
 ```
 
-Web 静态资源、数据库 migration SQL 和默认 Excel mapping 都已编译进二进制，不要求服务器安装 Go、Node、Docker 或额外配置文件。
+Web 静态资源和数据库 migration SQL 都已编译进二进制，不要求服务器安装 Go、Node、Docker 或额外配置文件。
 
 ### systemd
 
@@ -147,40 +144,6 @@ sudo systemctl status x-type-center
 ```bash
 journalctl -u x-type-center -f
 ```
-
-## 导入历史 Excel
-
-默认 mapping 已通过 `go:embed` 编译进 `x-type-center`，按原始类型表配置 5 个数据 Sheet、59 个类型列。
-
-导入器按表头文字定位列，不依赖 `A/B/C` 等固定列号，因此插入普通列不会导致映射错位。
-
-```bash
-go run ./cmd/x-type-center import --file /path/to/types.xlsx
-```
-
-如需临时覆盖 mapping，仍可显式传入：
-
-```bash
-x-type-center import --file /path/to/types.xlsx --mapping /path/to/mapping.json
-```
-
-或：
-
-```bash
-make import FILE=/path/to/types.xlsx
-```
-
-特殊值：
-
-```text
-5201-5700 SLG预留
-15500-15800 SLG预留
-1475-1514
-```
-
-会作为 `type_namespaces.reserved_ranges` JSON 数据导入。带 `SLG预留` 的区间只允许 SLG 项目优先分配；没有项目名的纯数字区间会作为全局阻塞区间，自动分配时跳过。
-
-`SLGCode` Sheet 中的历史值自动记录 `project=SLG`。
 
 ## CLI
 
@@ -233,7 +196,7 @@ bin/type-registry allocate \
 
 ### 撤回
 
-撤回不会释放类型值，记录会变为 `REVOKED`，该 value 永久不可重新分配。
+撤回会保留 `REVOKED` 历史记录，同时释放该 value；后续申请可以由 Registry 重新分配这个值。
 
 撤回单条：
 
@@ -283,7 +246,7 @@ POST /api/v1/types/validate
 
 项目字段可选。Web 端会从 `GET /api/v1/projects` 加载项目候选，同时允许直接输入新项目；当申请事务成功时，新项目会自动登记到 `projects` 表。已有 `type_entries` 和旧版 `reserved_ranges` 中的项目会在升级时自动回填到 `projects` 表。
 
-申请成功后返回 `allocationId`。Web 页面支持从申请结果直接撤回整批，也支持在 Namespace entries 中撤回单条记录。撤回只把状态改为 `REVOKED` 并记录撤回人、可选的撤回原因和时间，不回退 Namespace 游标，也不重新利用旧 value；重复调用同一撤回接口保持幂等。
+申请成功后返回 `allocationId`。Web 页面支持从申请结果直接撤回整批，也支持在 Namespace entries 中撤回单条记录。撤回会把状态改为 `REVOKED`，记录撤回人、IP、可选原因和时间，并释放该 value/symbol 的唯一占用；Namespace 游标会回退到可复用位置。重复调用同一撤回接口保持幂等。
 
 申请示例：
 
@@ -401,13 +364,12 @@ type-registry-skill.zip.sha256
 
 ## 数据模型
 
-数据库最终只保留 4 张业务表：
+数据库最终只保留 3 张业务表：
 
 ```text
 type_namespaces
 type_entries
 projects
-audit_logs
 ```
 
 ### type_namespaces
@@ -423,41 +385,41 @@ Namespace 别名和项目预留区间直接作为 JSON 保存：
 
 ### type_entries
 
-已注册类型值，同时承载申请批次和撤回状态：
+已注册类型值，同时承载申请批次和撤回历史：
 
 - `allocation_id`：同一次批量申请的所有 entry 使用相同批次号。
-- `revoked_by`、`revoke_reason`、`revoked_at`：保存撤回信息。
+- `request_ip`：记录申请来源 IP。
+- `revoked_by`、`revoke_ip`、`revoke_reason`、`revoked_at`：保存撤回信息。
 - 状态支持 `ACTIVE`、`REVOKED`、`DEPRECATED`。
-- 只要 value 曾登记过，就永久视为占用，撤回不会重新利用旧 value。
+- `active_value` / `active_symbol` 是生成列：`REVOKED` 时为 `NULL`，因此撤回后 value/symbol 可由 Registry 再次分配；`DEPRECATED` 仍保持占用。
+- 已撤回旧记录不会物理删除，所以同一个 Namespace/value 后续可能同时存在一条历史 `REVOKED` 记录和一条新的有效记录。
 
-因此旧版 `type_allocations`、`type_allocation_entries`、`type_entry_revocations` 不再需要独立表。
+因此旧版 `type_allocations`、`type_allocation_entries`、`type_entry_revocations` 和 `audit_logs` 都不再需要独立表。
 
 ### projects
 
 项目候选表。项目字段仍直接记录在 `type_entries.project`，申请新项目时自动 `INSERT IGNORE` 到该表，供 Web 搜索下拉框使用。
-
-### audit_logs
-
-记录 Registry 写操作，包含 action、Namespace、value、actor、client_ip 和 detail。服务端始终从连接信息解析客户端 IP；只有请求直接来自 `TYPE_REGISTRY_TRUSTED_PROXIES` 配置的可信代理时才读取 `X-Forwarded-For`，否则忽略该请求头。
 
 ### 旧库自动升级
 
 新版本启动或执行 `x-type-center migrate` 时：
 
 ```text
-创建/补齐四表字段
+创建/补齐 3 表字段
 ↓
 迁移 Namespace 别名与预留区间
 ↓
-迁移 allocation_id
+迁移 allocation_id / 撤回信息
 ↓
-迁移撤回信息
+从 audit_logs 回填申请 IP / 撤回 IP
 ↓
-回填 projects
+回填 projects 并校验旧数据
 ↓
-逐项校验迁移前后数量
+建立仅对非 REVOKED 生效的唯一索引
 ↓
-删除旧辅助表
+重新计算 Namespace 可用游标
+↓
+删除 audit_logs、旧辅助表和 Excel/source 遗留字段
 ```
 
 如果校验数量不一致，迁移会直接失败并保留旧表，不会继续执行删除。
@@ -466,15 +428,14 @@ Namespace 别名和项目预留区间直接作为 JSON 保存：
 
 ```text
 x-type-center server
-x-type-center import --file <types.xlsx> [--mapping <mapping.json>]
 x-type-center migrate
 x-type-center version
 ```
 
-其中 `server`、`import` 会自动执行当前幂等 migration；`migrate` 适合部署阶段显式初始化数据库。
+`server` 会自动执行当前幂等 migration；`migrate` 适合部署阶段显式初始化数据库。
 
 ## 注意事项
 
-- 已使用类型不要物理删除；误申请使用 `REVOKED`，正式下线后续使用 `DEPRECATED`。
-- Excel 导入应先在测试库执行并检查报告，再切换 Registry 为唯一写入口。
+- 已使用类型不要物理删除；误申请使用 `REVOKED`，正式下线使用 `DEPRECATED`。
+- `REVOKED` value 只允许由 Registry 后续 `allocate` 自动复用，不要在项目代码中手工认领历史号码。
 - API 本身不做应用层鉴权；生产环境建议仅暴露在公司内网/VPN，或由统一网关/SSO 控制访问范围。

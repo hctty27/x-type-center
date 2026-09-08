@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -14,7 +13,6 @@ import (
 
 	"github.com/hctty27/x-type-center/internal/config"
 	"github.com/hctty27/x-type-center/internal/httpapi"
-	"github.com/hctty27/x-type-center/internal/importer"
 	"github.com/hctty27/x-type-center/internal/service"
 	"github.com/hctty27/x-type-center/internal/store"
 	webassets "github.com/hctty27/x-type-center/web"
@@ -38,8 +36,6 @@ func main() {
 	switch os.Args[1] {
 	case "server":
 		err = runServer(logger, os.Args[2:])
-	case "import":
-		err = runImport(logger, os.Args[2:])
 	case "migrate":
 		err = runMigrate(logger, os.Args[2:])
 	case "version":
@@ -121,67 +117,6 @@ func runServer(logger *slog.Logger, args []string) error {
 	return nil
 }
 
-func runImport(logger *slog.Logger, args []string) error {
-	fs := flag.NewFlagSet("import", flag.ContinueOnError)
-	filePath := fs.String("file", "", "xlsx file to import")
-	mappingPath := fs.String("mapping", "", "optional mapping JSON; embedded default is used when omitted")
-	if err := fs.Parse(args); err != nil {
-		return err
-	}
-	if *filePath == "" {
-		return fmt.Errorf("--file is required")
-	}
-	if fs.NArg() != 0 {
-		return fmt.Errorf("import does not accept positional arguments")
-	}
-
-	cfg, err := config.Load()
-	if err != nil {
-		return fmt.Errorf("load config: %w", err)
-	}
-
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
-
-	db, err := store.Open(ctx, cfg.DSN, cfg.DBMaxOpenConns, cfg.DBMaxIdleConns, cfg.DBConnMaxLifetime)
-	if err != nil {
-		return fmt.Errorf("open database: %w", err)
-	}
-	defer db.Close()
-
-	if err := db.Migrate(ctx); err != nil {
-		return fmt.Errorf("migrate database: %w", err)
-	}
-
-	var mapping importer.Mapping
-	if *mappingPath == "" {
-		mapping, err = importer.DefaultMapping()
-	} else {
-		mapping, err = importer.LoadMapping(*mappingPath)
-	}
-	if err != nil {
-		return fmt.Errorf("load mapping: %w", err)
-	}
-
-	report, err := importer.New(db).Import(ctx, *filePath, mapping)
-	if err != nil {
-		return fmt.Errorf("import xlsx: %w", err)
-	}
-
-	encoder := json.NewEncoder(os.Stdout)
-	encoder.SetIndent("", "  ")
-	if err := encoder.Encode(report); err != nil {
-		return fmt.Errorf("encode import report: %w", err)
-	}
-
-	logger.Info("xlsx import completed",
-		"entriesInserted", report.EntriesInserted,
-		"entriesExisting", report.EntriesExisting,
-		"rangesInserted", report.RangesInserted,
-	)
-	return nil
-}
-
 func runMigrate(_ *slog.Logger, args []string) error {
 	fs := flag.NewFlagSet("migrate", flag.ContinueOnError)
 	if err := fs.Parse(args); err != nil {
@@ -230,9 +165,6 @@ func usage() {
 	fmt.Fprint(os.Stderr, `x-type-center commands:
   server
       Start HTTP API and embedded Web UI.
-
-  import --file <types.xlsx> [--mapping <mapping.json>]
-      Import historical Excel data. Uses the embedded mapping by default.
 
   migrate
       Apply embedded MySQL schema migrations.

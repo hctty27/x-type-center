@@ -25,18 +25,23 @@ CREATE TABLE IF NOT EXISTS type_entries (
     description VARCHAR(1000) NOT NULL DEFAULT '',
     requirement_ref VARCHAR(255) NOT NULL DEFAULT '',
     requester VARCHAR(128) NOT NULL DEFAULT '',
+    request_ip VARCHAR(45) NOT NULL DEFAULT '',
     allocation_id VARCHAR(64) NOT NULL DEFAULT '',
-    source VARCHAR(64) NOT NULL DEFAULT 'registry',
-    source_ref VARCHAR(1000) NOT NULL DEFAULT '',
     status VARCHAR(32) NOT NULL DEFAULT 'ACTIVE',
     revoked_by VARCHAR(128) NOT NULL DEFAULT '',
+    revoke_ip VARCHAR(45) NOT NULL DEFAULT '',
     revoke_reason VARCHAR(500) NOT NULL DEFAULT '',
     revoked_at TIMESTAMP(6) NULL,
     created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
-    updated_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+    active_value BIGINT GENERATED ALWAYS AS (
+        CASE WHEN status = 'REVOKED' THEN NULL ELSE value END
+    ) STORED,
+    active_symbol VARCHAR(191) GENERATED ALWAYS AS (
+        CASE WHEN status = 'REVOKED' THEN NULL ELSE symbol END
+    ) STORED,
     PRIMARY KEY (id),
-    UNIQUE KEY uk_namespace_value (namespace_id, value),
-    UNIQUE KEY uk_namespace_symbol (namespace_id, symbol),
+    UNIQUE KEY uk_namespace_active_value (namespace_id, active_value),
+    UNIQUE KEY uk_namespace_active_symbol (namespace_id, active_symbol),
     KEY idx_entries_project (project),
     KEY idx_entries_description (description(191)),
     KEY idx_entries_allocation (allocation_id),
@@ -51,19 +56,6 @@ CREATE TABLE IF NOT EXISTS projects (
     updated_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
     PRIMARY KEY (id),
     UNIQUE KEY uk_project_name (name)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
-CREATE TABLE IF NOT EXISTS audit_logs (
-    id BIGINT NOT NULL AUTO_INCREMENT,
-    action VARCHAR(64) NOT NULL,
-    namespace_code VARCHAR(128) NOT NULL DEFAULT '',
-    entry_value BIGINT NULL,
-    actor VARCHAR(128) NOT NULL DEFAULT '',
-    client_ip VARCHAR(45) NOT NULL DEFAULT '',
-    detail JSON NULL,
-    created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
-    PRIMARY KEY (id),
-    KEY idx_audit_namespace_created (namespace_code, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 INSERT IGNORE INTO projects(name)

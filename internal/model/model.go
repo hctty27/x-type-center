@@ -55,7 +55,6 @@ type CreateNamespaceRequest struct {
 	StartValue  *int64 `json:"startValue,omitempty"`
 	MinValue    *int64 `json:"minValue"`
 	MaxValue    *int64 `json:"maxValue"`
-	ClientIP    string `json:"-"`
 }
 
 type UpdateNamespaceRequest struct {
@@ -64,7 +63,6 @@ type UpdateNamespaceRequest struct {
 	MinValue    *int64 `json:"minValue"`
 	MaxValue    *int64 `json:"maxValue"`
 	Status      string `json:"status"`
-	ClientIP    string `json:"-"`
 }
 
 type TypeEntry struct {
@@ -77,15 +75,14 @@ type TypeEntry struct {
 	Description  string     `json:"description,omitempty"`
 	Requirement  string     `json:"requirement,omitempty"`
 	Requester    string     `json:"requester,omitempty"`
-	Source       string     `json:"source,omitempty"`
-	SourceRef    string     `json:"sourceRef,omitempty"`
+	RequestIP    string     `json:"requestIp,omitempty"`
 	Status       string     `json:"status"`
 	AllocationID string     `json:"allocationId,omitempty"`
 	RevokedAt    *time.Time `json:"revokedAt,omitempty"`
 	RevokedBy    string     `json:"revokedBy,omitempty"`
+	RevokeIP     string     `json:"revokeIp,omitempty"`
 	RevokeReason string     `json:"revokeReason,omitempty"`
 	CreatedAt    time.Time  `json:"createdAt"`
-	UpdatedAt    time.Time  `json:"updatedAt"`
 }
 
 type ReservedRange struct {

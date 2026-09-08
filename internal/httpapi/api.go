@@ -81,8 +81,6 @@ func (a *API) createNamespace(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	req.ClientIP = a.clientIP(r)
-
 	ns, err := a.registry.CreateNamespace(r.Context(), req)
 	if err != nil {
 		a.fail(w, err)
@@ -97,8 +95,6 @@ func (a *API) updateNamespace(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	req.ClientIP = a.clientIP(r)
-
 	ns, err := a.registry.UpdateNamespace(r.Context(), r.PathValue("code"), req)
 	if err != nil {
 		a.fail(w, err)

@@ -98,13 +98,13 @@ python3 <skill-dir>/scripts/type_registry.py allocate \
 
 ### 撤回
 
-Registry 支持撤回误申请，但撤回不是释放号码：entry 会变为 `REVOKED`，对应 value 永久保留，不得再次申请或手工复用。撤回原因是可选字段，有明确上下文时建议填写。
+Registry 支持撤回误申请。撤回后 entry 会保留为 `REVOKED` 历史记录，但对应 value 会释放，后续 `allocate` 可以重新分配。不得因为看到已撤回 value 就在项目代码中手工复用，仍必须以 Registry 新一次 `allocate` 返回的 value 为准。撤回原因是可选字段，有明确上下文时建议填写。
 
 只有在以下情况使用撤回：
 
 1. 用户明确要求撤回。
 2. 当前 AI 刚完成一次错误申请，并且能够确定本次返回的 `allocationId`。
-3. 不得为了“省号码”或获取更小的 value 主动撤回。
+3. 不得为了获取特定号码主动撤回；撤回只用于取消错误或不再需要的申请。
 
 整批撤回优先使用本次申请返回的 `allocationId`：
 
@@ -122,7 +122,7 @@ python3 <skill-dir>/scripts/type_registry.py revoke \
   --requester hc
 ```
 
-撤回接口是幂等的；重复撤回同一条已 `REVOKED` 的记录不会释放 value，也不会让该 value 重新可分配。
+撤回接口是幂等的；第一次撤回即释放 value，重复撤回同一条已 `REVOKED` 的记录不会产生额外副作用。
 
 ### 校验
 
@@ -156,6 +156,6 @@ python3 <skill-dir>/scripts/type_registry.py validate \
 5. 不存在时查看标准 Namespace 状态。
 6. 根据需求数量调用 `allocate` 原子申请值；单个申请默认 `count=1`，多个值使用 `--count`，并保留返回的 `allocationId`。
 7. 仅将本次 `allocate` 返回的 value/values 写入项目代码，不得自行推算或二次申请替代。
-8. 如果用户明确指出本次申请有误，可使用返回的 `allocationId` 撤回整批；撤回值永久不可复用。
+8. 如果用户明确指出本次申请有误，可使用返回的 `allocationId` 撤回整批；撤回后号码进入可重新分配状态，但不得手工指定复用。
 9. 完成修改后调用 `validate`；批量申请的值不传 symbol。
 10. `resolve` 未命中或 Registry 不可访问时不得自行猜测 Namespace 或新值，应明确报告无法安全处理。

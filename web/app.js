@@ -711,7 +711,7 @@ function renderAllocationRevoked(data) {
           '<small>' + esc(data.count || 0) + ' 个类型已标记为 REVOKED</small>',
         '</div>',
       '</div>',
-      '<div class="feedback-revoke-note">这些类型值仍永久占用，不会重新分配。</div>',
+      '<div class="feedback-revoke-note">这些类型值已释放，后续申请可重新分配。</div>',
     '</div>'
   ].join('');
 }
