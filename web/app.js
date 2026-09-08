@@ -90,7 +90,7 @@ async function loadSkillPackageAvailability() {
     button.removeAttribute('download');
     button.classList.add('disabled');
     button.setAttribute('aria-disabled', 'true');
-    button.title = '技能包未配置或文件不存在';
+    button.title = '技能包未配置、版本未同步或文件不存在';
   }
 }
 
