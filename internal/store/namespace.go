@@ -496,14 +496,28 @@ func (s *MySQL) UpdateNamespace(ctx context.Context, code string, req model.Upda
 	defer tx.Rollback()
 
 	var namespaceID, nextValue int64
+	var rawRanges []byte
 	if err := tx.QueryRowContext(ctx, `
-		SELECT id, next_value
+		SELECT id, next_value, reserved_ranges
 		FROM type_namespaces
 		WHERE code = ?
-		FOR UPDATE`, code).Scan(&namespaceID, &nextValue); errors.Is(err, sql.ErrNoRows) {
+		FOR UPDATE`, code).Scan(&namespaceID, &nextValue, &rawRanges); errors.Is(err, sql.ErrNoRows) {
 		return model.Namespace{}, ErrNotFound
 	} else if err != nil {
 		return model.Namespace{}, fmt.Errorf("lock namespace for update: %w", err)
+	}
+
+	ranges, err := decodeReservedRanges(rawRanges, namespaceID)
+	if err != nil {
+		return model.Namespace{}, err
+	}
+	for _, item := range ranges {
+		if req.MinValue != nil && item.StartValue < *req.MinValue {
+			return model.Namespace{}, fmt.Errorf("%w: min value cannot exclude reserved range %d-%d", ErrConflict, item.StartValue, item.EndValue)
+		}
+		if req.MaxValue != nil && item.EndValue > *req.MaxValue {
+			return model.Namespace{}, fmt.Errorf("%w: max value cannot exclude reserved range %d-%d", ErrConflict, item.StartValue, item.EndValue)
+		}
 	}
 
 	if req.MaxValue != nil {
