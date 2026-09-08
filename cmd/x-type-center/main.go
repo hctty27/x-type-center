@@ -82,7 +82,14 @@ func runServer(logger *slog.Logger, args []string) error {
 
 	registry := service.NewRegistry(db)
 	static := http.FileServer(http.FS(webassets.Files))
-	api := httpapi.New(registry, cfg.SkillPackagePath, cfg.PublicURL, cfg.TrustedProxies, logger)
+	api := httpapi.New(
+		registry,
+		cfg.SkillPackagePath,
+		cfg.PublicURL,
+		cfg.TrustedProxies,
+		httpapi.BuildInfo{Version: version, Commit: commit, BuildTime: buildTime},
+		logger,
+	)
 	server := &http.Server{
 		Addr:         cfg.Addr,
 		Handler:      api.Routes(static),
