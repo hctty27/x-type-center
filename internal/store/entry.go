@@ -480,40 +480,105 @@ func firstFreeInRange(ctx context.Context, tx *sql.Tx, namespaceID, start, end i
 }
 
 func nextGlobalCandidate(ctx context.Context, tx *sql.Tx, ns model.Namespace, start int64) (int64, error) {
-	candidate := start
-	if ns.MinValue != nil && candidate < *ns.MinValue {
-		candidate = *ns.MinValue
+	floor := start
+	if ns.MinValue != nil && floor < *ns.MinValue {
+		floor = *ns.MinValue
 	}
 
-	for {
-		if ns.MaxValue != nil && candidate > *ns.MaxValue {
-			return 0, ErrNamespaceExhausted
+	rows, err := tx.QueryContext(ctx, `
+		SELECT DISTINCT r.value
+		FROM type_entries r
+		WHERE r.namespace_id = ?
+		  AND r.status = 'REVOKED'
+		  AND r.value >= ?
+		  AND NOT EXISTS (
+			SELECT 1
+			FROM type_entries current_entry
+			WHERE current_entry.namespace_id = r.namespace_id
+			  AND current_entry.value = r.value
+			  AND current_entry.status <> 'REVOKED'
+		  )
+		ORDER BY r.value`, ns.ID, floor)
+	if err != nil {
+		return 0, fmt.Errorf("query reusable revoked values: %w", err)
+	}
+
+	var reusable *int64
+	for rows.Next() {
+		var value int64
+		if err := rows.Scan(&value); err != nil {
+			rows.Close()
+			return 0, err
 		}
-		skipped := false
-		for _, r := range ns.ReservedRanges {
-			if candidate >= r.StartValue && candidate <= r.EndValue {
-				candidate = r.EndValue + 1
-				skipped = true
-				break
-			}
+		if ns.MaxValue != nil && value > *ns.MaxValue {
+			break
 		}
-		if skipped {
+		if globalRangeContains(ns.ReservedRanges, value) {
 			continue
 		}
+		reusable = &value
+		break
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return 0, err
+	}
+	if err := rows.Close(); err != nil {
+		return 0, err
+	}
+	if reusable != nil {
+		return *reusable, nil
+	}
 
-		var exists int
-		err := tx.QueryRowContext(ctx, `
-			SELECT 1
-			FROM type_entries
-			WHERE namespace_id = ? AND value = ? AND status <> 'REVOKED'
-			LIMIT 1`, ns.ID, candidate).Scan(&exists)
-		if errors.Is(err, sql.ErrNoRows) {
-			return candidate, nil
+	var maxEver sql.NullInt64
+	if err := tx.QueryRowContext(ctx, `
+		SELECT MAX(value)
+		FROM type_entries
+		WHERE namespace_id = ?`, ns.ID).Scan(&maxEver); err != nil {
+		return 0, fmt.Errorf("read namespace high-water mark: %w", err)
+	}
+
+	candidate := floor
+	if maxEver.Valid && candidate <= maxEver.Int64 {
+		candidate = maxEver.Int64 + 1
+	}
+	candidate, ok := nextNonReservedValue(ns, candidate)
+	if !ok {
+		return 0, ErrNamespaceExhausted
+	}
+	return candidate, nil
+}
+
+func globalRangeContains(ranges []model.ReservedRange, value int64) bool {
+	for _, r := range ranges {
+		if value >= r.StartValue && value <= r.EndValue {
+			return true
 		}
-		if err != nil {
-			return 0, fmt.Errorf("check allocated value: %w", err)
+	}
+	return false
+}
+
+func nextNonReservedValue(ns model.Namespace, candidate int64) (int64, bool) {
+	for {
+		if ns.MaxValue != nil && candidate > *ns.MaxValue {
+			return 0, false
 		}
-		candidate++
+
+		advanced := false
+		for _, r := range ns.ReservedRanges {
+			if candidate < r.StartValue || candidate > r.EndValue {
+				continue
+			}
+			if ns.MaxValue != nil && r.EndValue >= *ns.MaxValue {
+				return 0, false
+			}
+			candidate = r.EndValue + 1
+			advanced = true
+			break
+		}
+		if !advanced {
+			return candidate, true
+		}
 	}
 }
 
@@ -542,6 +607,17 @@ func (s *MySQL) RecalculateNamespaceCursor(ctx context.Context, namespaceID int6
 	ns.ReservedRanges, err = decodeReservedRanges(rawRanges, ns.ID)
 	if err != nil {
 		return err
+	}
+
+	var entryCount int64
+	if err := tx.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM type_entries
+		WHERE namespace_id = ?`, ns.ID).Scan(&entryCount); err != nil {
+		return fmt.Errorf("count namespace entries: %w", err)
+	}
+	if entryCount == 0 {
+		return tx.Commit()
 	}
 
 	start := int64(1)
