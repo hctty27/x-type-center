@@ -541,4 +541,3 @@ func (s *MySQL) UpdateNamespace(ctx context.Context, code string, req model.Upda
 	}
 	return s.GetNamespace(ctx, code)
 }
-
