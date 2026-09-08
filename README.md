@@ -21,6 +21,8 @@ Registry 是唯一事实源，代码常量不是分配依据。
 - 类型校验
 - Web Namespace 总览和申请页面
 - Web 一键下载 AI Skill 包
+- Web 展示服务端版本和最新 Skill 版本
+- Skill 版本检查、自更新和最低兼容版本控制
 - AI Skill + CLI 工作流
 - 单 Go 二进制部署（server/migrate/version）
 - Docker Compose 本地开发可选
@@ -132,6 +134,7 @@ sudo useradd --system --no-create-home --shell /usr/sbin/nologin x-type-center |
 sudo mkdir -p /etc/x-type-center /var/lib/x-type-center
 sudo cp deploy/systemd/x-type-center.env.example /etc/x-type-center/x-type-center.env
 sudo cp /path/to/type-registry-skill.zip /var/lib/x-type-center/type-registry-skill.zip
+# 升级服务端二进制时必须同步替换这一份 Skill ZIP，避免下载包版本落后
 sudo cp deploy/systemd/x-type-center.service /etc/systemd/system/x-type-center.service
 
 sudo systemctl daemon-reload
@@ -228,6 +231,8 @@ API 不使用应用层 Token。Web、Skill 和 CLI 都直接调用同一套接�
 
 ```text
 GET  /healthz
+GET  /api/v1/version
+GET  /api/v1/skill-version
 GET  /api/v1/namespaces
 GET  /api/v1/projects
 GET  /api/v1/namespaces/resolve?q=商城类型
@@ -271,6 +276,7 @@ Skill 目录：
 skills/type-registry/
 ├── SKILL.md
 ├── config.json
+├── manifest.json
 └── scripts/
     └── type_registry.py
 ```
@@ -302,6 +308,15 @@ resolve -> search -> status -> allocate -> 修改代码 -> validate
 }
 ```
 
+Skill 版本记录在 `manifest.json`，使用 `MAJOR.MINOR.PATCH`。客户端每次运行会检查服务端最新版本；低于最低支持版本时，申请和撤回会被阻止。查看和升级：
+
+```bash
+python3 <skill-dir>/scripts/type_registry.py version
+python3 <skill-dir>/scripts/type_registry.py update
+```
+
+已安装的旧版 Skill 没有主动检查能力。服务端会识别旧版 Python Skill 请求：查询结果中附加 `skillUpdate` 提示，申请/撤回则返回 HTTP 426，要求重新下载新版 Skill。
+
 正式在多个项目分发前，把 `baseUrl` 改成公司内网统一的 X Type Center 地址。之后所有项目只需要复制同一份 Skill 目录。
 
 ### Web 下载技能包
@@ -332,7 +347,7 @@ TYPE_REGISTRY_PUBLIC_URL=https://x-type-center.internal
 
 客户端 IP 审计默认只使用 TCP 连接的远端地址，不信任 `X-Forwarded-For`。如果服务部署在 Nginx / LB 后面，可配置例如 `TYPE_REGISTRY_TRUSTED_PROXIES=127.0.0.1/32`；只有直接连接来源命中可信代理列表时，服务端才会从完整 `X-Forwarded-For` 链右侧向左跳过可信代理并选择客户端地址。可信代理范围应尽量精确，不要为了方便配置过大的网段。
 
-未配置 Skill 路径、文件不存在或 ZIP 内缺少 `type-registry/config.json` 时，页面按钮会不可用或下载失败。
+未配置 Skill 路径、文件不存在、ZIP 缺少必要文件，或 ZIP 中 `manifest.json` 的版本与服务端最新 Skill 版本不一致时，页面下载按钮会不可用。Web 顶部版本徽标也会提示“下载包未同步”。
 
 本地生成 Skill ZIP 模板：
 
@@ -437,5 +452,6 @@ x-type-center version
 ## 注意事项
 
 - 已使用类型不要物理删除；误申请使用 `REVOKED`，正式下线使用 `DEPRECATED`。
-- `REVOKED` value 只允许由 Registry 后续 `allocate` 自动复用，不要在项目代码中手工认领历史号码。
+- `REVOKED` value 只允许由 Registry 后续 `allocate` 自动复用；历史天然空洞也不能手工认领。
+- 发布新的 Skill 规则时同步递增 `manifest.json` 版本，并同步更新服务端最新/最低支持版本；服务端 ZIP 必须与最新版本一致。
 - API 本身不做应用层鉴权；生产环境建议仅暴露在公司内网/VPN，或由统一网关/SSO 控制访问范围。

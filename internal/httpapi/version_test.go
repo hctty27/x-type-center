@@ -1,0 +1,121 @@
+package httpapi
+
+import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"testing"
+)
+
+func TestCompareSemanticVersion(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		left  string
+		right string
+		want  int
+	}{
+		{"1.0.0", "1.0.0", 0},
+		{"1.0.1", "1.0.0", 1},
+		{"1.2.0", "1.10.0", -1},
+		{"v2.0.0", "1.9.9", 1},
+	}
+	for _, tt := range tests {
+		got := compareSemanticVersion(tt.left, tt.right)
+		if got < 0 {
+			got = -1
+		} else if got > 0 {
+			got = 1
+		}
+		if got != tt.want {
+			t.Fatalf("compareSemanticVersion(%q, %q) = %d, want %d", tt.left, tt.right, got, tt.want)
+		}
+	}
+}
+
+func TestSkillManifestMatchesServerVersion(t *testing.T) {
+	t.Parallel()
+
+	content, err := os.ReadFile(filepath.Join("..", "..", "skills", "type-registry", "manifest.json"))
+	if err != nil {
+		t.Fatalf("read manifest: %v", err)
+	}
+	var manifest map[string]any
+	if err := json.Unmarshal(content, &manifest); err != nil {
+		t.Fatalf("decode manifest: %v", err)
+	}
+	if got := manifest["version"]; got != skillLatestVersion {
+		t.Fatalf("manifest version = %v, server latest = %s", got, skillLatestVersion)
+	}
+}
+
+func TestLegacySkillGetsVisibleUpdateNotice(t *testing.T) {
+	t.Parallel()
+
+	api := &API{}
+	handler := api.withSkillVersionNotice(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]any{"items": []string{"RankType"}})
+	}))
+
+	request := httptest.NewRequest(http.MethodGet, "http://registry.local/api/v1/namespaces", nil)
+	request.Header.Set("User-Agent", "Python-urllib/3.12")
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d", response.Code)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if payload["skillUpdate"] == nil {
+		t.Fatal("skillUpdate is missing")
+	}
+}
+
+func TestLegacySkillWriteIsBlocked(t *testing.T) {
+	t.Parallel()
+
+	api := &API{}
+	handler := api.withSkillVersionNotice(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, http.StatusCreated, map[string]any{"value": 100})
+	}))
+
+	request := httptest.NewRequest(http.MethodPost, "http://registry.local/api/v1/types/allocate-batch", nil)
+	request.Header.Set("User-Agent", "Python-urllib/3.12")
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusUpgradeRequired {
+		t.Fatalf("status = %d, want %d", response.Code, http.StatusUpgradeRequired)
+	}
+}
+
+func TestCurrentSkillPassesWithoutNotice(t *testing.T) {
+	t.Parallel()
+
+	api := &API{}
+	handler := api.withSkillVersionNotice(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+	}))
+
+	request := httptest.NewRequest(http.MethodGet, "http://registry.local/api/v1/namespaces", nil)
+	request.Header.Set(skillVersionHeader, skillLatestVersion)
+	request.Header.Set("User-Agent", "x-type-center-skill/"+skillLatestVersion)
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, request)
+
+	var payload map[string]any
+	if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if _, exists := payload["skillUpdate"]; exists {
+		t.Fatal("current Skill should not receive skillUpdate")
+	}
+}

@@ -25,15 +25,17 @@ type API struct {
 	skillPackagePath string
 	publicURL        string
 	trustedProxies   []netip.Prefix
+	buildInfo        BuildInfo
 	logger           *slog.Logger
 }
 
-func New(registry *service.Registry, skillPackagePath, publicURL string, trustedProxies []netip.Prefix, logger *slog.Logger) *API {
+func New(registry *service.Registry, skillPackagePath, publicURL string, trustedProxies []netip.Prefix, buildInfo BuildInfo, logger *slog.Logger) *API {
 	return &API{
 		registry:         registry,
 		skillPackagePath: strings.TrimSpace(skillPackagePath),
 		publicURL:        strings.TrimRight(strings.TrimSpace(publicURL), "/"),
 		trustedProxies:   trustedProxies,
+		buildInfo:        buildInfo,
 		logger:           logger,
 	}
 }
@@ -41,6 +43,8 @@ func New(registry *service.Registry, skillPackagePath, publicURL string, trusted
 func (a *API) Routes(static http.Handler) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", a.health)
+	mux.HandleFunc("GET /api/v1/version", a.versionInfo)
+	mux.HandleFunc("GET /api/v1/skill-version", a.skillVersion)
 	mux.HandleFunc("GET /api/v1/namespaces", a.listNamespaces)
 	mux.HandleFunc("POST /api/v1/namespaces", a.createNamespace)
 	mux.HandleFunc("GET /api/v1/projects", a.listProjects)
@@ -59,7 +63,7 @@ func (a *API) Routes(static http.Handler) http.Handler {
 	mux.HandleFunc("POST /api/v1/allocations/{allocationId}/revoke", a.revokeAllocation)
 	mux.HandleFunc("POST /api/v1/types/validate", a.validateType)
 	mux.Handle("/", static)
-	return a.withLogging(mux)
+	return a.withLogging(a.withSkillVersionNotice(mux))
 }
 
 func (a *API) health(w http.ResponseWriter, _ *http.Request) {
@@ -169,6 +173,14 @@ func (a *API) deleteNamespaceAlias(w http.ResponseWriter, r *http.Request) {
 func (a *API) downloadSkillPackage(w http.ResponseWriter, r *http.Request) {
 	if a.skillPackagePath == "" {
 		writeError(w, http.StatusNotFound, "skill package is not configured")
+		return
+	}
+	if err := a.ensureSkillPackageCurrent(); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			writeError(w, http.StatusNotFound, "skill package is not available")
+			return
+		}
+		writeError(w, http.StatusConflict, err.Error())
 		return
 	}
 

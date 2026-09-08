@@ -85,6 +85,32 @@ button {
   font-size: 11px;
 }
 
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.version-badge {
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 9px;
+  border: 1px solid #e3e7ed;
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #697588;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.version-badge.warning {
+  border-color: #efd9b4;
+  background: #fffaf0;
+  color: #9a6700;
+}
+
 .download-button {
   height: 34px;
   display: inline-flex;

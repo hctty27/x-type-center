@@ -42,6 +42,33 @@ async function api(path, options = {}) {
   return body;
 }
 
+async function loadVersionInfo() {
+  const badge = $('versionBadge');
+  try {
+    const data = await api('/api/v1/version', { cache: 'no-store' });
+    const serverVersion = data.server?.version || 'unknown';
+    const skillVersion = data.skill?.latestVersion || 'unknown';
+    const packageVersion = data.skill?.packageVersion || '未配置';
+    const packageReady = data.skill?.packageReady === true;
+
+    badge.textContent = '系统 ' + serverVersion + ' · Skill v' + skillVersion;
+    badge.classList.toggle('warning', !packageReady);
+    badge.title = [
+      '系统版本：' + serverVersion,
+      'Commit：' + (data.server?.commit || 'unknown'),
+      '构建时间：' + (data.server?.buildTime || 'unknown'),
+      'Skill 最新：' + skillVersion,
+      '最低支持：' + (data.skill?.minSupportedVersion || 'unknown'),
+      '下载包版本：' + packageVersion,
+      packageReady ? '下载包已同步' : '下载包未同步，请更新服务端 Skill ZIP'
+    ].join('\n');
+  } catch (_) {
+    badge.textContent = '版本未知';
+    badge.classList.add('warning');
+    badge.title = '版本信息加载失败';
+  }
+}
+
 async function loadSkillPackageAvailability() {
   const button = $('skillDownloadButton');
 
@@ -63,7 +90,7 @@ async function loadSkillPackageAvailability() {
     button.removeAttribute('download');
     button.classList.add('disabled');
     button.setAttribute('aria-disabled', 'true');
-    button.title = '技能包未配置或文件不存在';
+    button.title = '技能包未配置、版本未同步或文件不存在';
   }
 }
 
@@ -1071,6 +1098,7 @@ $('entryPageSize').addEventListener('change', (event) => {
   });
 });
 
+loadVersionInfo();
 loadSkillPackageAvailability();
 loadNamespaces().catch(showMainError);
 loadProjects().catch((error) => {

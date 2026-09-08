@@ -13,8 +13,9 @@ description: 跨项目全局类型查询、申请和校验。新增或修改 Act
 2. 项目里的类型名称如果不是已确认的标准 Namespace code，必须先调用 `resolve`，禁止凭中文名称、类名或上下文自行猜测标准 Namespace。
 3. 再搜索 Registry，确认不存在相同或等价业务定义。
 4. 查看解析后的标准 Namespace 状态。
-5. 仅使用 Registry `allocate` 返回的 value。
+5. 仅使用 Registry `allocate` 返回的 value；历史中从未登记过的空洞不得自行认领，`REVOKED` value 是否复用也完全由 Registry 决定。
 6. 修改代码后执行 `validate`。
+7. 客户端提示 Skill 版本过旧时，必须先执行 `update`，然后重新读取更新后的 `SKILL.md` 再继续写操作。
 
 Registry 不使用 Token，不要向用户索要 Token，也不要添加 Authorization Header。
 
@@ -25,13 +26,32 @@ Registry 不使用 Token，不要向用户索要 Token，也不要添加 Authori
 ```text
 scripts/type_registry.py
 config.json
+manifest.json
 ```
+
+每次执行 Registry 命令时，客户端会向服务端检查 Skill 版本。普通新版本会给出升级提示；低于服务端最低支持版本时，`allocate` / `revoke` 会被阻止，必须先升级。
 
 服务地址直接从本 Skill 目录下的 `config.json` 读取。从 X Type Center 页面下载的技能包会自动写入当前服务的公开地址，通常无需手动修改 `baseUrl`。如果技能包是手工复制或跨环境使用，再检查 `config.json` 中的 `baseUrl` 是否可从当前机器访问。
 
 把整个 `type-registry` Skill 目录复制到项目或 OpenCode 全局 Skill 目录后即可使用，不要求项目安装 `type-registry` CLI，也不要求配置环境变量。
 
 执行命令时，先定位当前 `SKILL.md` 所在目录，再使用该目录下的脚本，不要假设 Skill 一定安装在某个固定绝对路径。
+
+### Skill 版本
+
+查看当前本地版本和服务端最新版本：
+
+```bash
+python3 <skill-dir>/scripts/type_registry.py version
+```
+
+升级当前 Skill：
+
+```bash
+python3 <skill-dir>/scripts/type_registry.py update
+```
+
+升级完成后必须重新读取当前 Skill 目录下的 `SKILL.md`，因为业务规则可能已经变化。若服务端提示下载包尚未更新，不要继续写操作，应让管理员先更新 X Type Center 服务端配置的 Skill ZIP。
 
 ### Namespace
 
@@ -155,7 +175,8 @@ python3 <skill-dir>/scripts/type_registry.py validate \
 4. 已存在时优先复用，不得再次申请。
 5. 不存在时查看标准 Namespace 状态。
 6. 根据需求数量调用 `allocate` 原子申请值；单个申请默认 `count=1`，多个值使用 `--count`，并保留返回的 `allocationId`。
-7. 仅将本次 `allocate` 返回的 value/values 写入项目代码，不得自行推算或二次申请替代。
-8. 如果用户明确指出本次申请有误，可使用返回的 `allocationId` 撤回整批；撤回后号码进入可重新分配状态，但不得手工指定复用。
+7. 仅将本次 `allocate` 返回的 value/values 写入项目代码；不得根据最大值、历史空洞或 `REVOKED` 记录自行推算可用号码。
+8. 如果用户明确指出本次申请有误，可使用返回的 `allocationId` 撤回整批；撤回后号码进入可重新分配状态，但是否复用完全由 Registry 决定。
 9. 完成修改后调用 `validate`；批量申请的值不传 symbol。
-10. `resolve` 未命中或 Registry 不可访问时不得自行猜测 Namespace 或新值，应明确报告无法安全处理。
+10. 客户端出现版本升级提示时按提示执行 `update`；如果属于强制升级，升级并重新读取 `SKILL.md` 前不得继续申请或撤回。
+11. `resolve` 未命中或 Registry 不可访问时不得自行猜测 Namespace 或新值，应明确报告无法安全处理。
