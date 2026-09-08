@@ -79,7 +79,7 @@ export TYPE_REGISTRY_DSN='type_center:type_center@tcp(127.0.0.1:3306)/x_type_cen
 go run ./cmd/x-type-center server
 ```
 
-服务启动时自动执行幂等 DDL。
+服务启动时自动执行幂等 DDL。旧版 9 表数据库会先校验并迁移数据，再收敛为 4 张业务表；新库直接创建 4 表结构。
 
 ## 单二进制部署
 
@@ -178,7 +178,7 @@ make import FILE=/path/to/types.xlsx
 1475-1514
 ```
 
-会作为 `reserved_ranges` 导入。带 `SLG预留` 的区间只允许 SLG 项目优先分配；没有项目名的纯数字区间会作为全局阻塞区间，自动分配时跳过。
+会作为 `type_namespaces.reserved_ranges` JSON 数据导入。带 `SLG预留` 的区间只允许 SLG 项目优先分配；没有项目名的纯数字区间会作为全局阻塞区间，自动分配时跳过。
 
 `SLGCode` Sheet 中的历史值自动记录 `project=SLG`。
 
@@ -281,7 +281,7 @@ POST /api/v1/allocations/{allocationId}/revoke
 POST /api/v1/types/validate
 ```
 
-项目字段可选。Web 端会从 `GET /api/v1/projects` 加载项目候选，同时允许直接输入新项目；当申请事务成功时，新项目会自动登记到 `projects` 表。已有 `type_entries` 和 `reserved_ranges` 中的项目会在迁移时自动回填到项目表。
+项目字段可选。Web 端会从 `GET /api/v1/projects` 加载项目候选，同时允许直接输入新项目；当申请事务成功时，新项目会自动登记到 `projects` 表。已有 `type_entries` 和旧版 `reserved_ranges` 中的项目会在升级时自动回填到 `projects` 表。
 
 申请成功后返回 `allocationId`。Web 页面支持从申请结果直接撤回整批，也支持在 Namespace entries 中撤回单条记录。撤回只把状态改为 `REVOKED` 并记录撤回人、可选的撤回原因和时间，不回退 Namespace 游标，也不重新利用旧 value；重复调用同一撤回接口保持幂等。
 
@@ -401,36 +401,66 @@ type-registry-skill.zip.sha256
 
 ## 数据模型
 
+数据库最终只保留 4 张业务表：
+
+```text
+type_namespaces
+type_entries
+projects
+audit_logs
+```
+
 ### type_namespaces
 
 每种全局类型一个 Namespace，并保存分配游标 `next_value`。
 
-### namespace_aliases
+Namespace 别名和项目预留区间直接作为 JSON 保存：
 
-Namespace 的全局替代名称。别名全局唯一，用于把“商城类型”“MallType”等项目术语确定性解析到标准 Namespace；第一版不区分 project。
+- `aliases`：保存别名对象，兼容现有别名查询、创建和按 ID 删除接口。
+- `reserved_ranges`：保存项目预留或全局阻塞区间。
+
+旧版 `namespace_aliases` 和 `reserved_ranges` 表的数据会在升级时完整回填到这两个 JSON 字段，校验数量一致后才删除旧表。
 
 ### type_entries
 
-已注册类型值。新申请时除 Namespace 外的元数据均可为空；未填写 `symbol` 时存储为 `NULL`，避免空字符串触发 Namespace 内 symbol 唯一约束冲突。状态支持 `ACTIVE`、`REVOKED`、`DEPRECATED`；只要 value 曾登记过，就永久视为占用。
+已注册类型值，同时承载申请批次和撤回状态：
 
-### type_allocations / type_allocation_entries
+- `allocation_id`：同一次批量申请的所有 entry 使用相同批次号。
+- `revoked_by`、`revoke_reason`、`revoked_at`：保存撤回信息。
+- 状态支持 `ACTIVE`、`REVOKED`、`DEPRECATED`。
+- 只要 value 曾登记过，就永久视为占用，撤回不会重新利用旧 value。
 
-记录一次申请及其包含的 entry，用于安全地撤回整批申请。每次新申请都会生成唯一 `allocationId`。
+因此旧版 `type_allocations`、`type_allocation_entries`、`type_entry_revocations` 不再需要独立表。
 
-### type_entry_revocations
+### projects
 
-记录撤回人、可选的撤回原因和撤回时间。撤回不物理删除 `type_entries`。
-
-### reserved_ranges
-
-项目预留或全局阻塞区间。
-
-- `project='SLG'`：SLG 可优先从该区间申请，其他项目跳过。
-- `project=''`：所有自动分配都跳过。
+项目候选表。项目字段仍直接记录在 `type_entries.project`，申请新项目时自动 `INSERT IGNORE` 到该表，供 Web 搜索下拉框使用。
 
 ### audit_logs
 
 记录 Registry 写操作，包含 action、Namespace、value、actor、client_ip 和 detail。服务端始终从连接信息解析客户端 IP；只有请求直接来自 `TYPE_REGISTRY_TRUSTED_PROXIES` 配置的可信代理时才读取 `X-Forwarded-For`，否则忽略该请求头。
+
+### 旧库自动升级
+
+新版本启动或执行 `x-type-center migrate` 时：
+
+```text
+创建/补齐四表字段
+↓
+迁移 Namespace 别名与预留区间
+↓
+迁移 allocation_id
+↓
+迁移撤回信息
+↓
+回填 projects
+↓
+逐项校验迁移前后数量
+↓
+删除旧辅助表
+```
+
+如果校验数量不一致，迁移会直接失败并保留旧表，不会继续执行删除。
 
 ## 服务端命令
 
