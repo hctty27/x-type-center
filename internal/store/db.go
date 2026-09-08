@@ -140,13 +140,13 @@ func (s *MySQL) upgradeLegacySchema(ctx context.Context) error {
 	if err := s.migrateAuditLogIPs(ctx); err != nil {
 		return err
 	}
-	if err := s.finalizeEntrySchema(ctx); err != nil {
-		return err
-	}
 	if legacyValueIndex {
 		if err := s.recalculateAllNamespaceCursors(ctx); err != nil {
 			return err
 		}
+	}
+	if err := s.finalizeEntrySchema(ctx); err != nil {
+		return err
 	}
 
 	for _, table := range []string{
