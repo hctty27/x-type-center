@@ -214,7 +214,7 @@ func (a *API) withSkillVersionNotice(next http.Handler) http.Handler {
 			notice["message"] = "Type Registry Skill 有新版本，请执行 type_registry.py update。"
 		}
 
-		if required && isWriteMethod(r.Method) {
+		if required && isSkillWriteRequest(r) {
 			writeJSON(w, http.StatusUpgradeRequired, map[string]any{
 				"error":       "当前 Type Registry Skill 版本过旧，写操作已阻止，请先升级。",
 				"status":      http.StatusUpgradeRequired,
@@ -264,11 +264,14 @@ func requestSkillVersion(r *http.Request) (string, bool) {
 	return "", false
 }
 
-func isWriteMethod(method string) bool {
-	switch method {
-	case http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
+func isSkillWriteRequest(r *http.Request) bool {
+	if r.Method != http.MethodPost {
+		return false
+	}
+	switch r.URL.Path {
+	case "/api/v1/types/allocate", "/api/v1/types/allocate-batch":
 		return true
 	default:
-		return false
+		return strings.HasSuffix(r.URL.Path, "/revoke")
 	}
 }
