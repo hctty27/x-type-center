@@ -503,6 +503,11 @@ func (s *MySQL) ImportHistoricalEntry(ctx context.Context, namespaceID, value in
 				source_ref = IF(source_ref = '', ?, source_ref)
 			WHERE namespace_id = ? AND value = ?`,
 			project, project, description, description, sourceRef, namespaceID, value)
+		if project != "" {
+			if _, err := s.db.ExecContext(ctx, `INSERT IGNORE INTO projects(name) VALUES (?)`, project); err != nil {
+				return false, fmt.Errorf("register imported project: %w", err)
+			}
+		}
 		return false, nil
 	}
 	if err != nil {
