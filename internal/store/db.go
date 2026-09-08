@@ -75,11 +75,6 @@ func (s *MySQL) Migrate(ctx context.Context) error {
 }
 
 func (s *MySQL) upgradeLegacySchema(ctx context.Context) error {
-	legacyValueIndex, err := s.indexExists(ctx, "type_entries", "uk_namespace_value")
-	if err != nil {
-		return err
-	}
-
 	for _, column := range []struct {
 		table string
 		name  string
@@ -140,10 +135,8 @@ func (s *MySQL) upgradeLegacySchema(ctx context.Context) error {
 	if err := s.migrateAuditLogIPs(ctx); err != nil {
 		return err
 	}
-	if legacyValueIndex {
-		if err := s.recalculateAllNamespaceCursors(ctx); err != nil {
-			return err
-		}
+	if err := s.recalculateAllNamespaceCursors(ctx); err != nil {
+		return err
 	}
 	if err := s.finalizeEntrySchema(ctx); err != nil {
 		return err
