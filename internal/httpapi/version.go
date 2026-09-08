@@ -11,13 +11,13 @@ import (
 	"os"
 	"strconv"
 	"strings"
+
+	"github.com/hctty27/x-type-center/internal/product"
 )
 
 const (
-	skillLatestVersion       = "1.1.0"
-	skillMinSupportedVersion = "1.1.0"
-	skillVersionHeader       = "X-Type-Registry-Skill-Version"
-	skillManifestPath        = "type-registry/manifest.json"
+	skillVersionHeader = "X-Type-Registry-Skill-Version"
+	skillManifestPath  = "type-registry/manifest.json"
 )
 
 type BuildInfo struct {
@@ -54,13 +54,15 @@ func (w *bufferedResponseWriter) Write(data []byte) (int, error) {
 }
 
 func (a *API) versionInfo(w http.ResponseWriter, _ *http.Request) {
+	skill := a.currentSkillVersionInfo()
 	writeJSON(w, http.StatusOK, map[string]any{
-		"server": map[string]string{
-			"version":   a.buildInfo.Version,
-			"commit":    a.buildInfo.Commit,
-			"buildTime": a.buildInfo.BuildTime,
-		},
-		"skill": a.currentSkillVersionInfo(),
+		"version":             product.Version,
+		"minSupportedVersion": product.MinSupportedSkillVersion,
+		"commit":              a.buildInfo.Commit,
+		"buildTime":           a.buildInfo.BuildTime,
+		"buildVersion":        a.buildInfo.Version,
+		"skillPackageVersion": skill["packageVersion"],
+		"skillPackageReady":   skill["packageReady"],
 	})
 }
 
@@ -70,8 +72,8 @@ func (a *API) skillVersion(w http.ResponseWriter, _ *http.Request) {
 
 func (a *API) currentSkillVersionInfo() map[string]any {
 	info := map[string]any{
-		"latestVersion":       skillLatestVersion,
-		"minSupportedVersion": skillMinSupportedVersion,
+		"latestVersion":       product.Version,
+		"minSupportedVersion": product.MinSupportedSkillVersion,
 		"packageReady":        false,
 		"downloadUrl":         "/api/v1/skill-package",
 		"message":             "Skill 已支持版本检查和 update；只有 Registry allocate 返回的号码可以使用。",
@@ -84,7 +86,7 @@ func (a *API) currentSkillVersionInfo() map[string]any {
 		return info
 	}
 	info["packageVersion"] = version
-	info["packageReady"] = compareSemanticVersion(version, skillLatestVersion) == 0
+	info["packageReady"] = compareSemanticVersion(version, product.Version) == 0
 	return info
 }
 
@@ -135,8 +137,8 @@ func (a *API) ensureSkillPackageCurrent() error {
 		}
 		return fmt.Errorf("read configured skill package version: %w", err)
 	}
-	if compareSemanticVersion(version, skillLatestVersion) != 0 {
-		return fmt.Errorf("configured skill package version %s does not match latest %s", version, skillLatestVersion)
+	if compareSemanticVersion(version, product.Version) != 0 {
+		return fmt.Errorf("configured skill package version %s does not match latest %s", version, product.Version)
 	}
 	return nil
 }
