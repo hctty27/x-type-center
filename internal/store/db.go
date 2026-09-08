@@ -356,13 +356,21 @@ func (s *MySQL) validateLegacyMigration(ctx context.Context) error {
 		return err
 	}
 	if exists {
+		linksExist, err := s.tableExists(ctx, "type_allocation_entries")
+		if err != nil {
+			return err
+		}
 		var orphaned int64
-		if err := s.db.QueryRowContext(ctx, `
-			SELECT COUNT(*)
-			FROM type_allocations a
-			LEFT JOIN type_allocation_entries ae ON ae.allocation_id = a.allocation_id
-			WHERE ae.allocation_id IS NULL`).Scan(&orphaned); err != nil {
-			return fmt.Errorf("check orphaned legacy allocations: %w", err)
+		if linksExist {
+			if err := s.db.QueryRowContext(ctx, `
+				SELECT COUNT(*)
+				FROM type_allocations a
+				LEFT JOIN type_allocation_entries ae ON ae.allocation_id = a.allocation_id
+				WHERE ae.allocation_id IS NULL`).Scan(&orphaned); err != nil {
+				return fmt.Errorf("check orphaned legacy allocations: %w", err)
+			}
+		} else if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM type_allocations`).Scan(&orphaned); err != nil {
+			return fmt.Errorf("count legacy allocations: %w", err)
 		}
 		if orphaned > 0 {
 			return fmt.Errorf("refusing to drop type_allocations: %d orphaned allocation rows exist", orphaned)
