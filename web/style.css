@@ -326,10 +326,14 @@ tbody tr:last-child td {
 }
 
 .namespace-row {
+  cursor: default;
+}
+
+.namespace-open-cell {
   cursor: pointer;
 }
 
-.namespace-row:hover {
+.namespace-open-cell:hover {
   background: #f7faff;
 }
 

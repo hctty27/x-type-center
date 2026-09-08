@@ -289,8 +289,8 @@ function renderNamespaceTable() {
       '</tr></thead>',
       '<tbody>',
         items.map((ns) => [
-          '<tr class="namespace-row" data-namespace="' + esc(ns.code) + '">',
-            '<td><span class="namespace-code">' + esc(ns.code) + '</span></td>',
+          '<tr class="namespace-row">',
+            '<td class="namespace-open-cell" data-open-namespace="' + esc(ns.code) + '"><span class="namespace-code">' + esc(ns.code) + '</span></td>',
             '<td title="' + esc(ns.description || ns.displayName || '-') + '">' + esc(ns.displayName || '-') + '</td>',
             '<td title="' + esc(aliasSummary(ns)) + '">' + esc(aliasSummary(ns)) + '</td>',
             '<td><strong>' + esc(valueOrDash(ns.currentMax)) + '</strong></td>',
@@ -305,13 +305,12 @@ function renderNamespaceTable() {
     '</table>'
   ].join('');
 
-  $('namespaceTable').querySelectorAll('[data-namespace]').forEach((row) => {
-    row.addEventListener('click', () => openEntries(row.dataset.namespace));
+  $('namespaceTable').querySelectorAll('[data-open-namespace]').forEach((cell) => {
+    cell.addEventListener('click', () => openEntries(cell.dataset.openNamespace));
   });
 
   $('namespaceTable').querySelectorAll('[data-edit-namespace]').forEach((button) => {
-    button.addEventListener('click', (event) => {
-      event.stopPropagation();
+    button.addEventListener('click', () => {
       openEditNamespace(button.dataset.editNamespace);
     });
   });
