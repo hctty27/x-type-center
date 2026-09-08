@@ -39,6 +39,99 @@ func (r *Registry) GetNamespace(ctx context.Context, code string) (model.Namespa
 	return ns, ranges, err
 }
 
+func (r *Registry) CreateNamespace(ctx context.Context, req model.CreateNamespaceRequest) (model.Namespace, error) {
+	req.Code = strings.TrimSpace(req.Code)
+	req.DisplayName = strings.TrimSpace(req.DisplayName)
+	req.Description = strings.TrimSpace(req.Description)
+
+	if req.Code == "" {
+		return model.Namespace{}, fmt.Errorf("namespace code is required")
+	}
+	if req.DisplayName == "" {
+		return model.Namespace{}, fmt.Errorf("display name is required")
+	}
+	if utf8.RuneCountInString(req.Code) > 128 {
+		return model.Namespace{}, fmt.Errorf("invalid namespace code: must be at most 128 characters")
+	}
+	if utf8.RuneCountInString(req.DisplayName) > 255 {
+		return model.Namespace{}, fmt.Errorf("invalid display name: must be at most 255 characters")
+	}
+	if utf8.RuneCountInString(req.Description) > 1000 {
+		return model.Namespace{}, fmt.Errorf("invalid description: must be at most 1000 characters")
+	}
+
+	startValue := int64(1)
+	if req.StartValue != nil {
+		startValue = *req.StartValue
+	}
+	if req.MinValue != nil && req.MaxValue != nil && *req.MinValue > *req.MaxValue {
+		return model.Namespace{}, fmt.Errorf("invalid namespace range: min value must not exceed max value")
+	}
+	if req.MinValue != nil && startValue < *req.MinValue {
+		return model.Namespace{}, fmt.Errorf("invalid start value: must be greater than or equal to min value")
+	}
+	if req.MaxValue != nil && startValue > *req.MaxValue {
+		return model.Namespace{}, fmt.Errorf("invalid start value: must be less than or equal to max value")
+	}
+
+	labels := []string{req.Code}
+	if !strings.EqualFold(req.Code, req.DisplayName) {
+		labels = append(labels, req.DisplayName)
+	}
+	for _, label := range labels {
+		conflict, err := r.store.NamespaceLabelExists(ctx, label)
+		if err != nil {
+			return model.Namespace{}, err
+		}
+		if conflict {
+			return model.Namespace{}, fmt.Errorf("%w: namespace code or display name already exists", store.ErrConflict)
+		}
+	}
+
+	req.StartValue = &startValue
+	return r.store.CreateNamespace(ctx, req)
+}
+
+func (r *Registry) UpdateNamespace(ctx context.Context, code string, req model.UpdateNamespaceRequest) (model.Namespace, error) {
+	code = strings.TrimSpace(code)
+	req.DisplayName = strings.TrimSpace(req.DisplayName)
+	req.Description = strings.TrimSpace(req.Description)
+	req.Status = strings.ToUpper(strings.TrimSpace(req.Status))
+
+	if code == "" {
+		return model.Namespace{}, fmt.Errorf("namespace code is required")
+	}
+	if req.DisplayName == "" {
+		return model.Namespace{}, fmt.Errorf("display name is required")
+	}
+	if utf8.RuneCountInString(req.DisplayName) > 255 {
+		return model.Namespace{}, fmt.Errorf("invalid display name: must be at most 255 characters")
+	}
+	if utf8.RuneCountInString(req.Description) > 1000 {
+		return model.Namespace{}, fmt.Errorf("invalid description: must be at most 1000 characters")
+	}
+	if req.Status != model.StatusActive && req.Status != model.StatusDeprecated {
+		return model.Namespace{}, fmt.Errorf("invalid namespace status: must be ACTIVE or DEPRECATED")
+	}
+	if req.MinValue != nil && req.MaxValue != nil && *req.MinValue > *req.MaxValue {
+		return model.Namespace{}, fmt.Errorf("invalid namespace range: min value must not exceed max value")
+	}
+
+	existing, err := r.store.GetNamespace(ctx, code)
+	if err != nil {
+		return model.Namespace{}, err
+	}
+	conflict, err := r.store.NamespaceLabelExistsExcept(ctx, req.DisplayName, existing.ID)
+	if err != nil {
+		return model.Namespace{}, err
+	}
+	if conflict {
+		return model.Namespace{}, fmt.Errorf("%w: display name conflicts with an existing namespace label", store.ErrConflict)
+	}
+
+	return r.store.UpdateNamespace(ctx, code, req)
+}
+
 func (r *Registry) ResolveNamespace(ctx context.Context, query string) (model.NamespaceResolveResult, error) {
 	query = strings.TrimSpace(query)
 	if query == "" {
