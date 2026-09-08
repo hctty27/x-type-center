@@ -75,6 +75,11 @@ func (s *MySQL) Migrate(ctx context.Context) error {
 }
 
 func (s *MySQL) upgradeLegacySchema(ctx context.Context) error {
+	legacyValueIndex, err := s.indexExists(ctx, "type_entries", "uk_namespace_value")
+	if err != nil {
+		return err
+	}
+
 	for _, column := range []struct {
 		table string
 		name  string
@@ -86,12 +91,24 @@ func (s *MySQL) upgradeLegacySchema(ctx context.Context) error {
 		{"type_entries", "revoked_by", "ALTER TABLE type_entries ADD COLUMN revoked_by VARCHAR(128) NOT NULL DEFAULT '' AFTER status"},
 		{"type_entries", "revoke_reason", "ALTER TABLE type_entries ADD COLUMN revoke_reason VARCHAR(500) NOT NULL DEFAULT '' AFTER revoked_by"},
 		{"type_entries", "revoked_at", "ALTER TABLE type_entries ADD COLUMN revoked_at TIMESTAMP(6) NULL AFTER revoke_reason"},
-		{"audit_logs", "client_ip", "ALTER TABLE audit_logs ADD COLUMN client_ip VARCHAR(45) NOT NULL DEFAULT '' AFTER actor"},
+		{"type_entries", "request_ip", "ALTER TABLE type_entries ADD COLUMN request_ip VARCHAR(45) NOT NULL DEFAULT '' AFTER requester"},
+		{"type_entries", "revoke_ip", "ALTER TABLE type_entries ADD COLUMN revoke_ip VARCHAR(45) NOT NULL DEFAULT '' AFTER revoked_by"},
 	} {
 		if err := s.ensureColumn(ctx, column.table, column.name, column.ddl); err != nil {
 			return err
 		}
 	}
+
+	auditExists, err := s.tableExists(ctx, "audit_logs")
+	if err != nil {
+		return err
+	}
+	if auditExists {
+		if err := s.ensureColumn(ctx, "audit_logs", "client_ip", "ALTER TABLE audit_logs ADD COLUMN client_ip VARCHAR(45) NOT NULL DEFAULT '' AFTER actor"); err != nil {
+			return err
+		}
+	}
+
 	if err := s.ensureIndex(ctx, "type_entries", "idx_entries_allocation", "CREATE INDEX idx_entries_allocation ON type_entries(allocation_id)"); err != nil {
 		return err
 	}
@@ -117,6 +134,20 @@ func (s *MySQL) upgradeLegacySchema(ctx context.Context) error {
 	if err := s.validateLegacyMigration(ctx); err != nil {
 		return err
 	}
+	if err := s.normalizeEntryLifecycle(ctx); err != nil {
+		return err
+	}
+	if err := s.migrateAuditLogIPs(ctx); err != nil {
+		return err
+	}
+	if err := s.finalizeEntrySchema(ctx); err != nil {
+		return err
+	}
+	if legacyValueIndex {
+		if err := s.recalculateAllNamespaceCursors(ctx); err != nil {
+			return err
+		}
+	}
 
 	for _, table := range []string{
 		"type_allocation_entries",
@@ -124,6 +155,7 @@ func (s *MySQL) upgradeLegacySchema(ctx context.Context) error {
 		"type_allocations",
 		"namespace_aliases",
 		"reserved_ranges",
+		"audit_logs",
 	} {
 		exists, err := s.tableExists(ctx, table)
 		if err != nil {
@@ -166,6 +198,164 @@ func (s *MySQL) ensureIndex(ctx context.Context, table, index, ddl string) error
 	}
 	if _, err := s.db.ExecContext(ctx, ddl); err != nil {
 		return fmt.Errorf("create index %s.%s: %w", table, index, err)
+	}
+	return nil
+}
+
+func (s *MySQL) indexExists(ctx context.Context, table, index string) (bool, error) {
+	var count int
+	if err := s.db.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM information_schema.STATISTICS
+		WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND INDEX_NAME = ?`, table, index).Scan(&count); err != nil {
+		return false, fmt.Errorf("check index %s.%s: %w", table, index, err)
+	}
+	return count > 0, nil
+}
+
+func (s *MySQL) dropIndexIfExists(ctx context.Context, table, index string) error {
+	exists, err := s.indexExists(ctx, table, index)
+	if err != nil || !exists {
+		return err
+	}
+	if _, err := s.db.ExecContext(ctx, "DROP INDEX "+index+" ON "+table); err != nil {
+		return fmt.Errorf("drop index %s.%s: %w", table, index, err)
+	}
+	return nil
+}
+
+func (s *MySQL) dropColumnIfExists(ctx context.Context, table, column string) error {
+	exists, err := s.columnExists(ctx, table, column)
+	if err != nil || !exists {
+		return err
+	}
+	if _, err := s.db.ExecContext(ctx, "ALTER TABLE "+table+" DROP COLUMN "+column); err != nil {
+		return fmt.Errorf("drop column %s.%s: %w", table, column, err)
+	}
+	return nil
+}
+
+func (s *MySQL) normalizeEntryLifecycle(ctx context.Context) error {
+	statusExists, err := s.columnExists(ctx, "type_entries", "status")
+	if err != nil || !statusExists {
+		return err
+	}
+	if _, err := s.db.ExecContext(ctx, `
+		UPDATE type_entries
+		SET status = 'REVOKED'
+		WHERE status = 'ACTIVE' AND revoked_at IS NOT NULL`); err != nil {
+		return fmt.Errorf("normalize migrated revoked entries: %w", err)
+	}
+	if _, err := s.db.ExecContext(ctx, `
+		UPDATE type_entries
+		SET revoked_at = created_at
+		WHERE status = 'REVOKED' AND revoked_at IS NULL`); err != nil {
+		return fmt.Errorf("backfill revoked timestamps: %w", err)
+	}
+	return nil
+}
+
+func (s *MySQL) migrateAuditLogIPs(ctx context.Context) error {
+	exists, err := s.tableExists(ctx, "audit_logs")
+	if err != nil || !exists {
+		return err
+	}
+
+	if _, err := s.db.ExecContext(ctx, `
+		UPDATE type_entries e
+		JOIN type_namespaces n ON n.id = e.namespace_id
+		JOIN (
+			SELECT a.namespace_code, a.entry_value, a.client_ip
+			FROM audit_logs a
+			JOIN (
+				SELECT namespace_code, entry_value, MIN(id) AS id
+				FROM audit_logs
+				WHERE action = 'ALLOCATE' AND entry_value IS NOT NULL AND client_ip <> ''
+				GROUP BY namespace_code, entry_value
+			) picked ON picked.id = a.id
+		) audit ON audit.namespace_code = n.code AND audit.entry_value = e.value
+		SET e.request_ip = audit.client_ip
+		WHERE e.request_ip = ''`); err != nil {
+		return fmt.Errorf("migrate allocation client ip: %w", err)
+	}
+
+	if _, err := s.db.ExecContext(ctx, `
+		UPDATE type_entries e
+		JOIN type_namespaces n ON n.id = e.namespace_id
+		JOIN (
+			SELECT a.namespace_code, a.entry_value, a.client_ip
+			FROM audit_logs a
+			JOIN (
+				SELECT namespace_code, entry_value, MAX(id) AS id
+				FROM audit_logs
+				WHERE action = 'REVOKE' AND entry_value IS NOT NULL AND client_ip <> ''
+				GROUP BY namespace_code, entry_value
+			) picked ON picked.id = a.id
+		) audit ON audit.namespace_code = n.code AND audit.entry_value = e.value
+		SET e.revoke_ip = audit.client_ip
+		WHERE e.revoke_ip = '' AND e.status = 'REVOKED'`); err != nil {
+		return fmt.Errorf("migrate revoke client ip: %w", err)
+	}
+	return nil
+}
+
+func (s *MySQL) finalizeEntrySchema(ctx context.Context) error {
+	if err := s.ensureColumn(ctx, "type_entries", "active_value", `
+		ALTER TABLE type_entries
+		ADD COLUMN active_value BIGINT
+		GENERATED ALWAYS AS (CASE WHEN status = 'REVOKED' THEN NULL ELSE value END) STORED`); err != nil {
+		return err
+	}
+	if err := s.ensureColumn(ctx, "type_entries", "active_symbol", `
+		ALTER TABLE type_entries
+		ADD COLUMN active_symbol VARCHAR(191)
+		GENERATED ALWAYS AS (CASE WHEN status = 'REVOKED' THEN NULL ELSE symbol END) STORED`); err != nil {
+		return err
+	}
+	if err := s.ensureIndex(ctx, "type_entries", "uk_namespace_active_value", "CREATE UNIQUE INDEX uk_namespace_active_value ON type_entries(namespace_id, active_value)"); err != nil {
+		return err
+	}
+	if err := s.ensureIndex(ctx, "type_entries", "uk_namespace_active_symbol", "CREATE UNIQUE INDEX uk_namespace_active_symbol ON type_entries(namespace_id, active_symbol)"); err != nil {
+		return err
+	}
+	for _, index := range []string{"uk_namespace_value", "uk_namespace_symbol"} {
+		if err := s.dropIndexIfExists(ctx, "type_entries", index); err != nil {
+			return err
+		}
+	}
+	for _, column := range []string{"source", "source_ref", "updated_at"} {
+		if err := s.dropColumnIfExists(ctx, "type_entries", column); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *MySQL) recalculateAllNamespaceCursors(ctx context.Context) error {
+	rows, err := s.db.QueryContext(ctx, `SELECT id FROM type_namespaces ORDER BY id`)
+	if err != nil {
+		return fmt.Errorf("list namespaces for cursor recalculation: %w", err)
+	}
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return err
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return err
+	}
+	if err := rows.Close(); err != nil {
+		return err
+	}
+	for _, id := range ids {
+		if err := s.RecalculateNamespaceCursor(ctx, id); err != nil {
+			return fmt.Errorf("recalculate namespace %d cursor: %w", id, err)
+		}
 	}
 	return nil
 }
