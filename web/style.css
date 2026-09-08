@@ -245,6 +245,27 @@ button {
   background: #f7f8fa;
 }
 
+.namespace-create-button,
+.namespace-save-button {
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 8px;
+  background: #1f2937;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.namespace-create-button:hover,
+.namespace-save-button:hover:not(:disabled) {
+  background: #111827;
+}
+
+.namespace-save-button:disabled {
+  cursor: default;
+  opacity: .5;
+}
+
 .table-shell {
   min-height: 0;
   border: 1px solid #e5e8ed;
@@ -313,27 +334,31 @@ tbody tr:last-child td {
 }
 
 .col-code {
-  width: 18%;
-}
-
-.col-name {
   width: 16%;
 }
 
+.col-name {
+  width: 14%;
+}
+
 .col-alias {
-  width: 18%;
+  width: 16%;
 }
 
 .col-number {
-  width: 9%;
+  width: 8%;
 }
 
 .col-range {
-  width: 12%;
+  width: 11%;
 }
 
 .col-status {
   width: 9%;
+}
+
+.col-action {
+  width: 10%;
 }
 
 .namespace-code {
@@ -344,6 +369,22 @@ tbody tr:last-child td {
 .next-value {
   color: #111827;
   font-weight: 800;
+}
+
+.namespace-edit-button {
+  height: 25px;
+  padding: 0 9px;
+  border: 1px solid #d7dde6;
+  border-radius: 6px;
+  background: #fff;
+  color: #4c586a;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.namespace-edit-button:hover {
+  border-color: #bdc7d5;
+  background: #f7f8fa;
 }
 
 .status-pill {
@@ -1003,6 +1044,90 @@ input:disabled {
 
 .entry-action-empty {
   color: #b5bcc7;
+}
+
+.namespace-manage-dialog {
+  width: min(620px, calc(100vw - 40px));
+  max-width: none;
+  padding: 0;
+  border: 0;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 28px 70px rgba(15, 23, 42, .22);
+}
+
+.namespace-manage-dialog::backdrop {
+  background: rgba(17, 24, 39, .38);
+  backdrop-filter: blur(2px);
+}
+
+.namespace-manage-shell {
+  display: grid;
+  gap: 13px;
+  padding: 18px;
+}
+
+.namespace-manage-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding-bottom: 11px;
+  border-bottom: 1px solid #eceff3;
+}
+
+.namespace-manage-header h2 {
+  margin: 0;
+  color: #172033;
+  font-size: 17px;
+}
+
+.namespace-manage-header .muted {
+  margin: 4px 0 0;
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.namespace-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.namespace-manage-dialog select {
+  width: 100%;
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid #dfe3e9;
+  border-radius: 8px;
+  outline: 0;
+  background: #fbfcfd;
+  color: #202b3b;
+}
+
+.namespace-manage-dialog select:focus {
+  border-color: #9db6e5;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, .06);
+}
+
+.namespace-manage-dialog input[readonly] {
+  cursor: default;
+  background: #f2f4f7;
+  color: #7b8594;
+}
+
+.namespace-message {
+  min-height: 14px;
+  margin: -4px 0 0;
+  color: #b42318;
+  font-size: 9px;
+}
+
+.namespace-manage-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .revoke-dialog {
