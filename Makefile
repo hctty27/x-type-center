@@ -1,4 +1,4 @@
-.PHONY: run build build-linux cli skill-package test fmt import migrate docker-up docker-down
+.PHONY: run build build-linux cli skill-package test fmt migrate docker-up docker-down
 
 VERSION ?= dev
 COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
@@ -31,10 +31,6 @@ test:
 
 fmt:
 	find ./cmd ./internal ./web -name '*.go' -print0 | xargs -0 gofmt -w
-
-import:
-	@test -n "$(FILE)" || (echo "usage: make import FILE=/path/to/types.xlsx" && exit 1)
-	go run ./cmd/x-type-center import --file "$(FILE)"
 
 migrate:
 	go run ./cmd/x-type-center migrate
