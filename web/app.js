@@ -9,6 +9,10 @@ const state = {
   projects: [],
   projectComboItems: [],
   projectComboActiveIndex: -1,
+  namespaceEditor: {
+    mode: 'create',
+    code: ''
+  },
   revoke: {
     mode: '',
     entryId: 0,
@@ -137,7 +141,7 @@ async function loadNamespaces() {
   const data = await api('/api/v1/namespaces');
   state.namespaces = data.items || [];
 
-  if (state.selectedNamespace && !state.namespaces.some((ns) => ns.code === state.selectedNamespace)) {
+  if (state.selectedNamespace && !state.namespaces.some((ns) => ns.code === state.selectedNamespace && ns.status === 'ACTIVE')) {
     state.selectedNamespace = '';
   }
 
@@ -154,6 +158,80 @@ async function loadProjects() {
   }
 }
 
+
+function openCreateNamespace() {
+  state.namespaceEditor = { mode: 'create', code: '' };
+  $('namespaceDialogTitle').textContent = '新增 Namespace';
+  $('namespaceDialogMeta').textContent = 'Code 创建后不可直接修改。';
+  $('namespaceCode').readOnly = false;
+  $('namespaceCode').value = '';
+  $('namespaceDisplayName').value = '';
+  $('namespaceDescription').value = '';
+  $('namespaceStartValue').value = '1';
+  $('namespaceMinValue').value = '';
+  $('namespaceMaxValue').value = '';
+  $('namespaceNextValue').value = '';
+  $('namespaceStatus').value = 'ACTIVE';
+  $('namespaceStartField').hidden = false;
+  $('namespaceNextField').hidden = true;
+  $('namespaceStatusField').hidden = true;
+  $('namespaceMessage').textContent = '';
+  $('saveNamespaceButton').textContent = '创建';
+  $('saveNamespaceButton').disabled = false;
+
+  const dialog = $('namespaceDialog');
+  if (!dialog.open) dialog.showModal();
+  $('namespaceCode').focus();
+}
+
+function openEditNamespace(code) {
+  const ns = state.namespaces.find((item) => item.code === code);
+  if (!ns) return;
+
+  state.namespaceEditor = { mode: 'edit', code: ns.code };
+  $('namespaceDialogTitle').textContent = '编辑 Namespace';
+  $('namespaceDialogMeta').textContent = 'Code 为稳定标识，不支持直接修改。';
+  $('namespaceCode').readOnly = true;
+  $('namespaceCode').value = ns.code;
+  $('namespaceDisplayName').value = ns.displayName || '';
+  $('namespaceDescription').value = ns.description || '';
+  $('namespaceStartValue').value = '';
+  $('namespaceMinValue').value = ns.minValue == null ? '' : String(ns.minValue);
+  $('namespaceMaxValue').value = ns.maxValue == null ? '' : String(ns.maxValue);
+  $('namespaceNextValue').value = ns.nextValue == null ? '' : String(ns.nextValue);
+  $('namespaceStatus').value = ns.status === 'DEPRECATED' ? 'DEPRECATED' : 'ACTIVE';
+  $('namespaceStartField').hidden = true;
+  $('namespaceNextField').hidden = false;
+  $('namespaceStatusField').hidden = false;
+  $('namespaceMessage').textContent = '';
+  $('saveNamespaceButton').textContent = '保存';
+  $('saveNamespaceButton').disabled = false;
+
+  const dialog = $('namespaceDialog');
+  if (!dialog.open) dialog.showModal();
+  $('namespaceDisplayName').focus();
+}
+
+function closeNamespaceDialog() {
+  if ($('namespaceDialog').open) {
+    $('namespaceDialog').close();
+  }
+  state.namespaceEditor = { mode: 'create', code: '' };
+}
+
+function namespaceInteger(id, label, required = false) {
+  const raw = $(id).value.trim();
+  if (!raw) {
+    if (required) throw new Error(label + '不能为空');
+    return null;
+  }
+
+  const value = Number(raw);
+  if (!Number.isSafeInteger(value)) {
+    throw new Error(label + '必须是安全整数');
+  }
+  return value;
+}
 
 function applyNamespaceFilter(resetPage = true) {
   const query = $('searchInput').value.trim().toLowerCase();
@@ -207,6 +285,7 @@ function renderNamespaceTable() {
         '<th class="col-number">已使用</th>',
         '<th class="col-range">值范围</th>',
         '<th class="col-status">状态</th>',
+        '<th class="col-action">操作</th>',
       '</tr></thead>',
       '<tbody>',
         items.map((ns) => [
@@ -219,6 +298,7 @@ function renderNamespaceTable() {
             '<td>' + esc(ns.usedCount || 0) + '</td>',
             '<td>' + esc(formatRange(ns)) + '</td>',
             '<td><span class="status-pill ' + (ns.status === 'ACTIVE' ? 'active' : 'inactive') + '">' + esc(ns.status || '-') + '</span></td>',
+            '<td><button class="namespace-edit-button" type="button" data-edit-namespace="' + esc(ns.code) + '">编辑</button></td>',
           '</tr>'
         ].join('')).join(''),
       '</tbody>',
@@ -228,10 +308,17 @@ function renderNamespaceTable() {
   $('namespaceTable').querySelectorAll('[data-namespace]').forEach((row) => {
     row.addEventListener('click', () => openEntries(row.dataset.namespace));
   });
+
+  $('namespaceTable').querySelectorAll('[data-edit-namespace]').forEach((button) => {
+    button.addEventListener('click', (event) => {
+      event.stopPropagation();
+      openEditNamespace(button.dataset.editNamespace);
+    });
+  });
 }
 
 function syncComboSelection() {
-  const ns = state.namespaces.find((item) => item.code === state.selectedNamespace);
+  const ns = state.namespaces.find((item) => item.code === state.selectedNamespace && item.status === 'ACTIVE');
   $('allocateNamespace').value = ns?.code || '';
   $('allocateNamespaceSearch').value = ns ? namespaceLabel(ns) : '';
 }
@@ -242,6 +329,7 @@ function filterComboItems() {
   const query = selected && rawQuery === namespaceLabel(selected) ? '' : rawQuery.toLowerCase();
 
   state.comboItems = state.namespaces.filter((ns) => {
+    if (ns.status !== 'ACTIVE') return false;
     if (!query) return true;
     return ns.code.toLowerCase().includes(query)
       || String(ns.displayName || '').toLowerCase().includes(query)
@@ -403,7 +491,7 @@ async function openEntries(code) {
   const ns = state.namespaces.find((item) => item.code === code);
   if (!ns) return;
 
-  state.selectedNamespace = code;
+  state.selectedNamespace = ns.status === 'ACTIVE' ? code : '';
   syncComboSelection();
 
   state.entries.namespace = code;
@@ -732,6 +820,70 @@ $('clearSearchButton').addEventListener('click', () => {
   applyNamespaceFilter(true);
 });
 $('refreshButton').addEventListener('click', () => loadNamespaces().catch(showMainError));
+$('createNamespaceButton').addEventListener('click', openCreateNamespace);
+$('closeNamespaceDialog').addEventListener('click', closeNamespaceDialog);
+$('cancelNamespaceButton').addEventListener('click', closeNamespaceDialog);
+
+$('namespaceDialog').addEventListener('click', (event) => {
+  if (event.target === $('namespaceDialog')) closeNamespaceDialog();
+});
+
+$('namespaceForm').addEventListener('submit', async (event) => {
+  event.preventDefault();
+
+  const mode = state.namespaceEditor.mode;
+  $('namespaceMessage').textContent = '';
+  $('saveNamespaceButton').disabled = true;
+
+  try {
+    const minValue = namespaceInteger('namespaceMinValue', '最小值');
+    const maxValue = namespaceInteger('namespaceMaxValue', '最大值');
+    if (minValue != null && maxValue != null && minValue > maxValue) {
+      throw new Error('最小值不能大于最大值');
+    }
+
+    let data;
+    if (mode === 'create') {
+      const startValue = namespaceInteger('namespaceStartValue', '起始值', true);
+      if (minValue != null && startValue < minValue) {
+        throw new Error('起始值不能小于最小值');
+      }
+      if (maxValue != null && startValue > maxValue) {
+        throw new Error('起始值不能大于最大值');
+      }
+
+      data = await api('/api/v1/namespaces', {
+        method: 'POST',
+        body: JSON.stringify({
+          code: $('namespaceCode').value.trim(),
+          displayName: $('namespaceDisplayName').value.trim(),
+          description: $('namespaceDescription').value.trim(),
+          startValue,
+          minValue,
+          maxValue
+        })
+      });
+    } else {
+      data = await api('/api/v1/namespaces/' + encodeURIComponent(state.namespaceEditor.code), {
+        method: 'PUT',
+        body: JSON.stringify({
+          displayName: $('namespaceDisplayName').value.trim(),
+          description: $('namespaceDescription').value.trim(),
+          minValue,
+          maxValue,
+          status: $('namespaceStatus').value
+        })
+      });
+    }
+
+    closeNamespaceDialog();
+    state.selectedNamespace = data.status === 'ACTIVE' ? data.code : '';
+    await loadNamespaces();
+  } catch (error) {
+    $('namespaceMessage').textContent = error.message;
+    $('saveNamespaceButton').disabled = false;
+  }
+});
 
 $('namespacePageSize').addEventListener('change', (event) => {
   state.namespacePageSize = Number(event.target.value);
