@@ -210,7 +210,6 @@ func (s *MySQL) AllocateBatch(ctx context.Context, req model.AllocateRequest, co
 			ns.NextValue = next
 		}
 
-
 		now := time.Now().UTC()
 		items = append(items, model.TypeEntry{
 			ID:           entryID,
@@ -256,7 +255,8 @@ func (s *MySQL) RevokeEntry(ctx context.Context, id int64, requester, reason, cl
 	} else if err != nil {
 		return model.TypeEntry{}, fmt.Errorf("find entry namespace for revoke: %w", err)
 	}
-	if _, err := tx.ExecContext(ctx, `SELECT id FROM type_namespaces WHERE id = ? FOR UPDATE`, namespaceID); err != nil {
+	var lockedNamespaceID int64
+	if err := tx.QueryRowContext(ctx, `SELECT id FROM type_namespaces WHERE id = ? FOR UPDATE`, namespaceID).Scan(&lockedNamespaceID); err != nil {
 		return model.TypeEntry{}, fmt.Errorf("lock namespace for revoke: %w", err)
 	}
 
@@ -322,7 +322,8 @@ func (s *MySQL) RevokeAllocation(ctx context.Context, allocationID, requester, r
 	if err != nil {
 		return nil, fmt.Errorf("find allocation namespace for revoke: %w", err)
 	}
-	if _, err := tx.ExecContext(ctx, `SELECT id FROM type_namespaces WHERE id = ? FOR UPDATE`, namespaceID); err != nil {
+	var lockedNamespaceID int64
+	if err := tx.QueryRowContext(ctx, `SELECT id FROM type_namespaces WHERE id = ? FOR UPDATE`, namespaceID).Scan(&lockedNamespaceID); err != nil {
 		return nil, fmt.Errorf("lock namespace for allocation revoke: %w", err)
 	}
 
@@ -501,7 +502,11 @@ func nextGlobalCandidate(ctx context.Context, tx *sql.Tx, ns model.Namespace, st
 		}
 
 		var exists int
-		err := tx.QueryRowContext(ctx, `SELECT 1 FROM type_entries WHERE namespace_id = ? AND value = ? AND status <> 'REVOKED' LIMIT 1`, ns.ID, candidate).Scan(&exists)
+		err := tx.QueryRowContext(ctx, `
+			SELECT 1
+			FROM type_entries
+			WHERE namespace_id = ? AND value = ? AND status <> 'REVOKED'
+			LIMIT 1`, ns.ID, candidate).Scan(&exists)
 		if errors.Is(err, sql.ErrNoRows) {
 			return candidate, nil
 		}
