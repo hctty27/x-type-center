@@ -118,6 +118,36 @@ func (s *MySQL) NamespaceLabelExists(ctx context.Context, label string) (bool, e
 	return false, rows.Err()
 }
 
+func (s *MySQL) NamespaceLabelExistsExcept(ctx context.Context, label string, excludeID int64) (bool, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT id, code, display_name, aliases FROM type_namespaces`)
+	if err != nil {
+		return false, fmt.Errorf("check namespace label: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var id int64
+		var code, displayName string
+		var raw []byte
+		if err := rows.Scan(&id, &code, &displayName, &raw); err != nil {
+			return false, err
+		}
+		if id != excludeID && (strings.EqualFold(label, code) || strings.EqualFold(label, displayName)) {
+			return true, nil
+		}
+		aliases, err := decodeAliases(raw, id)
+		if err != nil {
+			return false, err
+		}
+		for _, item := range aliases {
+			if strings.EqualFold(label, item.Alias) {
+				return true, nil
+			}
+		}
+	}
+	return false, rows.Err()
+}
+
 func (s *MySQL) CreateNamespaceAlias(ctx context.Context, namespaceID int64, alias string) (model.NamespaceAlias, error) {
 	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
 	if err != nil {
@@ -415,6 +445,119 @@ func lockNamespace(ctx context.Context, tx *sql.Tx, code string) (model.Namespac
 	}
 	ns.ReservedRanges = ranges
 	return ns, nil
+}
+
+func (s *MySQL) CreateNamespace(ctx context.Context, req model.CreateNamespaceRequest) (model.Namespace, error) {
+	startValue := int64(1)
+	if req.StartValue != nil {
+		startValue = *req.StartValue
+	}
+
+	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
+	if err != nil {
+		return model.Namespace{}, fmt.Errorf("begin create namespace tx: %w", err)
+	}
+	defer tx.Rollback()
+
+	result, err := tx.ExecContext(ctx, `
+		INSERT INTO type_namespaces(code, display_name, description, next_value, min_value, max_value, status)
+		VALUES (?, ?, ?, ?, ?, ?, 'ACTIVE')`,
+		req.Code, req.DisplayName, req.Description, startValue, req.MinValue, req.MaxValue)
+	if isDuplicateKey(err) {
+		return model.Namespace{}, fmt.Errorf("%w: namespace code already exists", ErrConflict)
+	}
+	if err != nil {
+		return model.Namespace{}, fmt.Errorf("create namespace: %w", err)
+	}
+
+	if _, err := result.LastInsertId(); err != nil {
+		return model.Namespace{}, fmt.Errorf("read namespace id: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `
+		INSERT INTO audit_logs(action, namespace_code, actor, client_ip, detail)
+		VALUES ('NAMESPACE_CREATE', ?, '', ?, JSON_OBJECT(
+			'displayName', ?, 'description', ?, 'startValue', ?, 'minValue', ?, 'maxValue', ?
+		))`,
+		req.Code, req.ClientIP, req.DisplayName, req.Description, startValue, req.MinValue, req.MaxValue); err != nil {
+		return model.Namespace{}, fmt.Errorf("write namespace create audit log: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return model.Namespace{}, fmt.Errorf("commit create namespace: %w", err)
+	}
+	return s.GetNamespace(ctx, req.Code)
+}
+
+func (s *MySQL) UpdateNamespace(ctx context.Context, code string, req model.UpdateNamespaceRequest) (model.Namespace, error) {
+	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
+	if err != nil {
+		return model.Namespace{}, fmt.Errorf("begin update namespace tx: %w", err)
+	}
+	defer tx.Rollback()
+
+	var namespaceID, nextValue int64
+	var rawRanges []byte
+	if err := tx.QueryRowContext(ctx, `
+		SELECT id, next_value, reserved_ranges
+		FROM type_namespaces
+		WHERE code = ?
+		FOR UPDATE`, code).Scan(&namespaceID, &nextValue, &rawRanges); errors.Is(err, sql.ErrNoRows) {
+		return model.Namespace{}, ErrNotFound
+	} else if err != nil {
+		return model.Namespace{}, fmt.Errorf("lock namespace for update: %w", err)
+	}
+
+	ranges, err := decodeReservedRanges(rawRanges, namespaceID)
+	if err != nil {
+		return model.Namespace{}, err
+	}
+	for _, item := range ranges {
+		if req.MinValue != nil && item.StartValue < *req.MinValue {
+			return model.Namespace{}, fmt.Errorf("%w: min value cannot exclude reserved range %d-%d", ErrConflict, item.StartValue, item.EndValue)
+		}
+		if req.MaxValue != nil && item.EndValue > *req.MaxValue {
+			return model.Namespace{}, fmt.Errorf("%w: max value cannot exclude reserved range %d-%d", ErrConflict, item.StartValue, item.EndValue)
+		}
+	}
+
+	if req.MaxValue != nil {
+		var maxUsed sql.NullInt64
+		if err := tx.QueryRowContext(ctx, `
+			SELECT MAX(value)
+			FROM type_entries
+			WHERE namespace_id = ?`, namespaceID).Scan(&maxUsed); err != nil {
+			return model.Namespace{}, fmt.Errorf("read namespace max used value: %w", err)
+		}
+		if maxUsed.Valid && maxUsed.Int64 > *req.MaxValue {
+			return model.Namespace{}, fmt.Errorf("%w: max value cannot be lower than existing value %d", ErrConflict, maxUsed.Int64)
+		}
+	}
+
+	if req.MinValue != nil && nextValue < *req.MinValue {
+		nextValue = *req.MinValue
+	}
+
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE type_namespaces
+		SET display_name = ?, description = ?, min_value = ?, max_value = ?, status = ?, next_value = ?
+		WHERE id = ?`,
+		req.DisplayName, req.Description, req.MinValue, req.MaxValue, req.Status, nextValue, namespaceID); err != nil {
+		return model.Namespace{}, fmt.Errorf("update namespace: %w", err)
+	}
+
+	if _, err := tx.ExecContext(ctx, `
+		INSERT INTO audit_logs(action, namespace_code, actor, client_ip, detail)
+		VALUES ('NAMESPACE_UPDATE', ?, '', ?, JSON_OBJECT(
+			'displayName', ?, 'description', ?, 'minValue', ?, 'maxValue', ?, 'status', ?
+		))`,
+		code, req.ClientIP, req.DisplayName, req.Description, req.MinValue, req.MaxValue, req.Status); err != nil {
+		return model.Namespace{}, fmt.Errorf("write namespace update audit log: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return model.Namespace{}, fmt.Errorf("commit update namespace: %w", err)
+	}
+	return s.GetNamespace(ctx, code)
 }
 
 func (s *MySQL) EnsureNamespace(ctx context.Context, code, displayName string) (model.Namespace, error) {

@@ -42,9 +42,11 @@ func (a *API) Routes(static http.Handler) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", a.health)
 	mux.HandleFunc("GET /api/v1/namespaces", a.listNamespaces)
+	mux.HandleFunc("POST /api/v1/namespaces", a.createNamespace)
 	mux.HandleFunc("GET /api/v1/projects", a.listProjects)
 	mux.HandleFunc("GET /api/v1/namespaces/resolve", a.resolveNamespace)
 	mux.HandleFunc("GET /api/v1/namespaces/{code}", a.getNamespace)
+	mux.HandleFunc("PUT /api/v1/namespaces/{code}", a.updateNamespace)
 	mux.HandleFunc("GET /api/v1/namespaces/{code}/aliases", a.listNamespaceAliases)
 	mux.HandleFunc("POST /api/v1/namespaces/{code}/aliases", a.createNamespaceAlias)
 	mux.HandleFunc("DELETE /api/v1/namespaces/{code}/aliases/{id}", a.deleteNamespaceAlias)
@@ -71,6 +73,38 @@ func (a *API) listNamespaces(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"items": items})
+}
+
+func (a *API) createNamespace(w http.ResponseWriter, r *http.Request) {
+	var req model.CreateNamespaceRequest
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	req.ClientIP = a.clientIP(r)
+
+	ns, err := a.registry.CreateNamespace(r.Context(), req)
+	if err != nil {
+		a.fail(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, ns)
+}
+
+func (a *API) updateNamespace(w http.ResponseWriter, r *http.Request) {
+	var req model.UpdateNamespaceRequest
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	req.ClientIP = a.clientIP(r)
+
+	ns, err := a.registry.UpdateNamespace(r.Context(), r.PathValue("code"), req)
+	if err != nil {
+		a.fail(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, ns)
 }
 
 func (a *API) listProjects(w http.ResponseWriter, r *http.Request) {

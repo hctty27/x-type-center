@@ -39,6 +39,7 @@
               <input id="searchInput" autocomplete="off" placeholder="搜索 Namespace、名称、别名或描述">
               <button id="clearSearchButton" class="text-button" type="button">清空</button>
             </div>
+            <button id="createNamespaceButton" class="namespace-create-button" type="button">新增 Namespace</button>
             <button id="refreshButton" class="secondary-button" type="button">刷新</button>
           </div>
         </div>
@@ -135,6 +136,73 @@
       </aside>
     </main>
   </div>
+
+  <dialog id="namespaceDialog" class="namespace-manage-dialog">
+    <form id="namespaceForm" class="namespace-manage-shell">
+      <header class="namespace-manage-header">
+        <div>
+          <p class="dialog-kicker">NAMESPACE</p>
+          <h2 id="namespaceDialogTitle">新增 Namespace</h2>
+          <p id="namespaceDialogMeta" class="muted">Code 创建后不可直接修改。</p>
+        </div>
+        <button id="closeNamespaceDialog" class="icon-button" type="button" aria-label="关闭">×</button>
+      </header>
+
+      <div class="namespace-form-grid">
+        <label class="field">
+          <span>Namespace Code</span>
+          <input id="namespaceCode" maxlength="128" autocomplete="off" placeholder="例如 SHOP_TYPE" required>
+        </label>
+
+        <label class="field">
+          <span>名称</span>
+          <input id="namespaceDisplayName" maxlength="255" autocomplete="off" placeholder="例如 商城类型" required>
+        </label>
+      </div>
+
+      <label class="field">
+        <span>描述 <em>可选</em></span>
+        <textarea id="namespaceDescription" maxlength="1000" placeholder="Namespace 用途说明"></textarea>
+      </label>
+
+      <div class="namespace-form-grid">
+        <label id="namespaceStartField" class="field">
+          <span>起始值</span>
+          <input id="namespaceStartValue" type="number" step="1" value="1" required>
+        </label>
+
+        <label id="namespaceNextField" class="field" hidden>
+          <span>下一可用值 <em>系统维护</em></span>
+          <input id="namespaceNextValue" type="number" readonly>
+        </label>
+
+        <label class="field">
+          <span>最小值 <em>可选</em></span>
+          <input id="namespaceMinValue" type="number" step="1" placeholder="不限制">
+        </label>
+
+        <label class="field">
+          <span>最大值 <em>可选</em></span>
+          <input id="namespaceMaxValue" type="number" step="1" placeholder="不限制">
+        </label>
+
+        <label id="namespaceStatusField" class="field" hidden>
+          <span>状态</span>
+          <select id="namespaceStatus">
+            <option value="ACTIVE">ACTIVE</option>
+            <option value="DEPRECATED">DEPRECATED</option>
+          </select>
+        </label>
+      </div>
+
+      <p id="namespaceMessage" class="namespace-message"></p>
+
+      <div class="namespace-manage-actions">
+        <button id="cancelNamespaceButton" class="secondary-button" type="button">取消</button>
+        <button id="saveNamespaceButton" class="namespace-save-button" type="submit">创建</button>
+      </div>
+    </form>
+  </dialog>
 
   <dialog id="entryDialog" class="entry-dialog">
     <div class="dialog-shell">

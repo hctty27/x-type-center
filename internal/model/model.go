@@ -48,6 +48,25 @@ type CreateNamespaceAliasRequest struct {
 	Alias string `json:"alias"`
 }
 
+type CreateNamespaceRequest struct {
+	Code        string `json:"code"`
+	DisplayName string `json:"displayName"`
+	Description string `json:"description"`
+	StartValue  *int64 `json:"startValue,omitempty"`
+	MinValue    *int64 `json:"minValue"`
+	MaxValue    *int64 `json:"maxValue"`
+	ClientIP    string `json:"-"`
+}
+
+type UpdateNamespaceRequest struct {
+	DisplayName string `json:"displayName"`
+	Description string `json:"description"`
+	MinValue    *int64 `json:"minValue"`
+	MaxValue    *int64 `json:"maxValue"`
+	Status      string `json:"status"`
+	ClientIP    string `json:"-"`
+}
+
 type TypeEntry struct {
 	ID           int64      `json:"id"`
 	NamespaceID  int64      `json:"namespaceId"`
