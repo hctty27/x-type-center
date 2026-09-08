@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/hctty27/x-type-center/internal/product"
 )
 
 func TestCompareSemanticVersion(t *testing.T) {
@@ -46,8 +48,8 @@ func TestSkillManifestMatchesServerVersion(t *testing.T) {
 	if err := json.Unmarshal(content, &manifest); err != nil {
 		t.Fatalf("decode manifest: %v", err)
 	}
-	if got := manifest["version"]; got != skillLatestVersion {
-		t.Fatalf("manifest version = %v, server latest = %s", got, skillLatestVersion)
+	if got := manifest["version"]; got != product.Version {
+		t.Fatalf("manifest version = %v, server latest = %s", got, product.Version)
 	}
 }
 
@@ -105,8 +107,8 @@ func TestCurrentSkillPassesWithoutNotice(t *testing.T) {
 	}))
 
 	request := httptest.NewRequest(http.MethodGet, "http://registry.local/api/v1/namespaces", nil)
-	request.Header.Set(skillVersionHeader, skillLatestVersion)
-	request.Header.Set("User-Agent", "x-type-center-skill/"+skillLatestVersion)
+	request.Header.Set(skillVersionHeader, product.Version)
+	request.Header.Set("User-Agent", "x-type-center-skill/"+product.Version)
 	response := httptest.NewRecorder()
 
 	handler.ServeHTTP(response, request)
