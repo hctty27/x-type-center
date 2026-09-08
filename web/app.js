@@ -43,29 +43,20 @@ async function api(path, options = {}) {
 }
 
 async function loadVersionInfo() {
-  const badge = $('versionBadge');
+  const meta = $('brandMeta');
   try {
     const data = await api('/api/v1/version', { cache: 'no-store' });
-    const serverVersion = data.server?.version || 'unknown';
-    const skillVersion = data.skill?.latestVersion || 'unknown';
-    const packageVersion = data.skill?.packageVersion || '未配置';
-    const packageReady = data.skill?.packageReady === true;
-
-    badge.textContent = '系统 ' + serverVersion + ' · Skill v' + skillVersion;
-    badge.classList.toggle('warning', !packageReady);
-    badge.title = [
-      '系统版本：' + serverVersion,
-      'Commit：' + (data.server?.commit || 'unknown'),
-      '构建时间：' + (data.server?.buildTime || 'unknown'),
-      'Skill 最新：' + skillVersion,
-      '最低支持：' + (data.skill?.minSupportedVersion || 'unknown'),
-      '下载包版本：' + packageVersion,
-      packageReady ? '下载包已同步' : '下载包未同步，请更新服务端 Skill ZIP'
+    const version = data.version || '1.1.0';
+    meta.textContent = '跨项目全局类型注册中心 · author by openai,hc · v' + version;
+    meta.title = [
+      '版本：' + version,
+      'Commit：' + (data.commit || 'unknown'),
+      '构建时间：' + (data.buildTime || 'unknown'),
+      'Skill 包：' + (data.skillPackageVersion || '未配置'),
+      data.skillPackageReady ? 'Skill 包已同步' : 'Skill 包未同步'
     ].join('\n');
   } catch (_) {
-    badge.textContent = '版本未知';
-    badge.classList.add('warning');
-    badge.title = '版本信息加载失败';
+    meta.title = '版本信息加载失败';
   }
 }
 
