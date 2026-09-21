@@ -307,7 +307,7 @@ function renderNamespaceTable() {
       '</tr></thead>',
       '<tbody>',
         items.map((ns) => [
-          '<tr class="namespace-row">',
+          '<tr class="namespace-row' + (ns.status === 'ACTIVE' ? ' selectable' : '') + '" data-select-namespace="' + esc(ns.status === 'ACTIVE' ? ns.code : '') + '">',
             '<td class="namespace-open-cell" data-open-namespace="' + esc(ns.code) + '"><span class="namespace-code">' + esc(ns.code) + '</span></td>',
             '<td title="' + esc(ns.description || ns.displayName || '-') + '">' + esc(ns.displayName || '-') + '</td>',
             '<td title="' + esc(aliasSummary(ns)) + '">' + esc(aliasSummary(ns)) + '</td>',
@@ -322,6 +322,13 @@ function renderNamespaceTable() {
       '</tbody>',
     '</table>'
   ].join('');
+
+  $('namespaceTable').querySelectorAll('.namespace-row[data-select-namespace]').forEach((row) => {
+    row.addEventListener('click', (event) => {
+      if (!row.dataset.selectNamespace || event.target.closest('[data-open-namespace], [data-edit-namespace]')) return;
+      selectNamespace(row.dataset.selectNamespace);
+    });
+  });
 
   $('namespaceTable').querySelectorAll('[data-open-namespace]').forEach((cell) => {
     cell.addEventListener('click', () => openEntries(cell.dataset.openNamespace));
