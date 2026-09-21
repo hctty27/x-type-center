@@ -335,6 +335,14 @@ tbody tr:last-child td {
   cursor: default;
 }
 
+.namespace-row.selectable {
+  cursor: pointer;
+}
+
+.namespace-row.selectable:hover td {
+  background: #f7faff;
+}
+
 .namespace-open-cell {
   cursor: pointer;
 }
