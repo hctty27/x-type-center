@@ -139,3 +139,24 @@ jobs:
               --generate-notes \
               --latest
           fi
+
+      - name: Keep only the two latest published releases
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          old_tags="$(gh release list --limit 1000 \
+            --json tagName,publishedAt,isDraft \
+            --jq '[.[] | select(.isDraft == false)] | sort_by(.publishedAt) | reverse | .[2:] | .[].tagName')"
+
+          if [[ -z "${old_tags}" ]]; then
+            echo "No old releases to delete."
+            exit 0
+          fi
+
+          while IFS= read -r tag; do
+            [[ -n "${tag}" ]] || continue
+            echo "Deleting old release: ${tag}"
+            gh release delete "${tag}" --yes
+          done <<< "${old_tags}"
