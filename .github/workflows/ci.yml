@@ -12,6 +12,8 @@ concurrency:
 jobs:
   test:
     runs-on: [self-hosted, Linux, X64, cursor]
+    env:
+      HOME: ${{ runner.temp }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -44,6 +46,8 @@ jobs:
 
   package:
     runs-on: [self-hosted, Linux, X64, cursor]
+    env:
+      HOME: ${{ runner.temp }}
     needs: test
     strategy:
       matrix:
@@ -89,6 +93,8 @@ jobs:
   release:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: [self-hosted, Linux, X64, cursor]
+    env:
+      HOME: ${{ runner.temp }}
     needs: package
     permissions:
       contents: write
