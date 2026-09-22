@@ -38,7 +38,15 @@ jobs:
       - run: go vet ./...
       - run: node --check web/app.js
       - run: python3 -m py_compile skills/type-registry/scripts/type_registry.py
-      - run: make skill-package && unzip -l dist/type-registry-skill.zip | grep 'type-registry/SKILL.md'
+      - name: Verify skill package
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          python3 -m zipfile -c dist/type-registry-skill.zip skills/type-registry
+          python3 -m zipfile -t dist/type-registry-skill.zip
+          python3 -m zipfile -l dist/type-registry-skill.zip | grep 'type-registry/SKILL.md'
+          (cd dist && sha256sum type-registry-skill.zip > type-registry-skill.zip.sha256)
       - run: go test ./...
       - run: go build -o /tmp/x-type-center ./cmd/x-type-center
       - run: go build -o /tmp/type-registry ./cmd/type-registry
@@ -110,7 +118,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p release-assets
-          (cd skills && zip -qr ../release-assets/type-registry-skill.zip type-registry)
+          python3 -m zipfile -c release-assets/type-registry-skill.zip skills/type-registry
           (cd release-assets && sha256sum type-registry-skill.zip > type-registry-skill.zip.sha256)
       - name: Publish GitHub Release
         shell: bash
