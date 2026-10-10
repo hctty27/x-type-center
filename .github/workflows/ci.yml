@@ -90,13 +90,14 @@ jobs:
           (cd dist && sha256sum "${PACKAGE}.tar.gz" > "${PACKAGE}.tar.gz.sha256")
 
       - uses: actions/upload-artifact@v4
+        if: github.event_name == 'push'
         with:
           name: x-type-center-${{ github.run_number }}-linux-${{ matrix.arch }}
           path: |
             dist/*.tar.gz
             dist/*.tar.gz.sha256
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 3
 
   release:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
